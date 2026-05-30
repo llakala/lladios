@@ -238,7 +238,7 @@ fix (self: {
     Type
   */
   type = self.typedef "type" (
-    v: isAttrs v && v ? name && isString v.name && v ? verify && isFunction v.verify
+    v: v ? name && isString v.name && v ? verify && isFunction v.verify
   );
 
   optional =
