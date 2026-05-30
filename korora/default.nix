@@ -133,7 +133,14 @@ fix (self: {
     # Verification function returning a bool.
     verify:
     assert isFunction verify;
-    self.typedef' name (wrapBoolVerify name verify);
+    {
+      inherit name;
+      verify = wrapBoolVerify name verify;
+      check = v: v2: if verify v then v2 else throw (typeError name v);
+
+      # The name of the type without polymorphic metadata
+      __name = head (split "<" name);
+    };
 
   /*
     Declare a custom type using an optional<string> function.
