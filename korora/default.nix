@@ -110,8 +110,6 @@ let
         recurse 0
       );
 
-  addErrorContext = context: error: if error == null then null else "${context}: ${error}";
-
   fix =
     f:
     let
@@ -254,9 +252,16 @@ fix (self: {
     let
       name = "nullOr<${t.name}>";
       inherit (t) verify;
-      withErrorContext = addErrorContext "in ${name}";
     in
-    self.typedef' name (v: if v == null then null else withErrorContext (verify v));
+    self.typedef' name (
+      v:
+      if v == null then
+        null
+      else if verify v == null then
+        null
+      else
+        "in ${name}: ${verify v}"
+    );
 
   /*
     listOf<t>
@@ -267,9 +272,16 @@ fix (self: {
     let
       name = "listOf<${t.name}>";
       inherit (t) verify;
-      withErrorContext = addErrorContext "in ${name} element";
     in
-    self.typedef' name (v: if !isList v then typeError name v else withErrorContext (all' verify v));
+    self.typedef' name (
+      v:
+      if !isList v then
+        typeError name v
+      else if all' verify v == null then
+        null
+      else
+        "in ${name} element: ${all' verify v}"
+    );
 
   /*
     attrsOf<t>
@@ -286,9 +298,13 @@ fix (self: {
       if !isAttrs attrs then
         typeError name attrs
       else
-        all' (key: addErrorContext "in ${name} value: in attribute '${key}'" (verify attrs.${key})) (
-          attrNames attrs
-        )
+        all' (
+          key:
+          if verify attrs.${key} == null then
+            null
+          else
+            "in ${name} value: in attribute '${key}': ${verify attrs.${key}}"
+        ) (attrNames attrs)
     );
 
   /*
@@ -409,7 +425,6 @@ fix (self: {
     assert isAttrs members;
     let
       names = attrNames members;
-      withErrorContext = addErrorContext "in struct '${name}'";
 
       mkStruct' =
         {
@@ -427,12 +442,19 @@ fix (self: {
             attr:
             let
               inherit (members.${attr}) verify;
-              withErrorContext = addErrorContext "in member '${attr}'";
             in
             if members.${attr}.__optional or (!total) then
-              v: if v ? ${attr} then withErrorContext (verify v.${attr}) else null
+              v:
+              if !v ? ${attr} || verify v.${attr} == null then
+                null
+              else
+                "in member '${attr}': ${verify v.${attr}}"
             else
-              v: if v ? ${attr} then withErrorContext (verify v.${attr}) else "missing member '${attr}'"
+              v:
+              if v ? ${attr} then
+                if verify v.${attr} == null then null else "in member '${attr}': ${verify v.${attr}}"
+              else
+                "missing member '${attr}'"
           ) names;
 
           allFuncs =
@@ -448,23 +470,21 @@ fix (self: {
         in
         self.typedef' name (
           v:
-          withErrorContext (
-            if !isAttrs v then
-              typeError name v
-            else if all (func: func v == null) allFuncs then
-              null
-            else
-              # If an error was found, run the checks again to find the first error to return.
-              foldl' (
-                acc: func:
-                if acc != null then
-                  acc
-                else if func v != null then
-                  func v
-                else
-                  null
-              ) null allFuncs
-          )
+          if !isAttrs v then
+            "in struct '${name}': ${typeError name v}"
+          else if all (func: func v == null) allFuncs then
+            null
+          else
+            # If an error was found, run the checks again to find the first error to return.
+            foldl' (
+              acc: func:
+              if acc != null then
+                acc
+              else if func v != null then
+                "in struct '${name}': ${func v}"
+              else
+                acc
+            ) null allFuncs
         )
         // {
           override = mkStruct';
@@ -485,9 +505,8 @@ fix (self: {
     let
       name = "optionalAttr<${t.name}>";
       inherit (t) verify;
-      withErrorContext = addErrorContext "in ${name}";
     in
-    self.typedef' name (v: withErrorContext (verify v)) // makeOptional;
+    self.typedef' name (v: if verify v == null then null else "in ${name}: ${verify v}") // makeOptional;
 
   /*
     enum<name, elems...>
@@ -511,7 +530,6 @@ fix (self: {
     assert isList members;
     let
       name = "tuple<${concatStringsSep ", " (map (t: t.name) members)}>";
-      withErrorContext = addErrorContext "in ${name}";
       len = length members;
       funcs = map (t: t.verify) members;
       verifyValue =
@@ -526,11 +544,13 @@ fix (self: {
     self.typedef' name (
       v:
       if !isList v then
-        typeError name v
-      else if (length v) != len then
-        "Expected tuple to have length ${toString len} but value '${toPretty v}' has length ${toString (length v)}"
+        "in ${name}: ${typeError name v}"
+      else if length v != len then
+        "in ${name}: Expected tuple to have length ${toString len} but value '${toPretty v}' has length ${toString (length v)}"
+      else if verifyValue v 0 == null then
+        null
       else
-        withErrorContext (verifyValue v 0)
+        "in ${name}: ${verifyValue v 0}"
     );
 
   /*

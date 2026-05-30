@@ -513,12 +513,12 @@ lib.fix (
       {
         testNotList = {
           expr = testTuple.verify "xyz";
-          expected = "Expected type 'tuple<string, int>' but value '\"xyz\"' failed the type check";
+          expected = "in tuple<string, int>: Expected type 'tuple<string, int>' but value '\"xyz\"' failed the type check";
         };
 
         testInvalidLength = {
           expr = testTuple.verify [ ];
-          expected = "Expected tuple to have length 2 but value '[ ]' has length 0";
+          expected = "in tuple<string, int>: Expected tuple to have length 2 but value '[ ]' has length 0";
         };
 
         testInvalidType = {
