@@ -60,7 +60,7 @@ let
     };
 
     subOptions = struct "subOptions" {
-      inherit (modules) options;
+      options = attrsOf modules.option;
       description = optionalAttr string;
       # Make fields used for normal options non-permitted
       type = neverAttr;
