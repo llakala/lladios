@@ -133,17 +133,16 @@ let
       concatMap (
         mutatorPath':
         let
-          mutatorPath = absModulePath modulePath mutatorPath';
-          resolution = fetchModule mutatorPath;
+          resolution = fetchModule modulePath mutatorPath';
         in
         # TODO: decide whether to error here, if a module didn't
         # mutate when it was supposed to
         if resolution.mutations ? ${modulePath}.${name} then
           [
             {
-              name = mutatorPath;
+              name = resolution.path;
               value =
-                checkType "${errorPrefix}: while checking type of mutator '${mutatorPath}'" option.mutatorType
+                checkType "${errorPrefix}: while checking type of mutator '${resolution.path}'" option.mutatorType
                   (callFunction resolution.mutations.${modulePath}.${name} resolution.args);
             }
           ]
@@ -185,19 +184,7 @@ let
       ) (attrNames options)
     );
 
-  # Return absolute module path relative to pwd
-  # absModulePath /foo /bar
-  # => /bar
-  #
-  # absModulePath /foo ./bar
-  # => /foo/bar
-  #
-  # absModulePath /foo ../bar
-  # => /foo
-  absModulePath =
-    pwd: path: if substring 0 1 path == "/" then path else toString (/. + pwd + "/${path}");
-
-  # Get a module by it's / delimited path from the tree root
+  # Get a module by it's / delimited path from the given current path
   fetchModule =
     let
       split = builtins.split "/";
@@ -212,18 +199,20 @@ let
             Valid children of `${module.path}`: ${printList (attrNames module.modules)}
           '';
     in
-    path:
-    assert path != "";
-    if path == "/" then
+    current: relpath:
+    assert relpath != "";
+    if relpath == "/" then
       tree
-    # Assert that module input begins with a /
-    else if substring 0 1 path != "/" then
-      throw ''
-        Module path `${path}` does not start with a slash.
-        Module paths should look like "/nixpkgs", which refers to `root.modules.nixpkgs`.
-      ''
     else
-      foldl' selectModule tree (tail (splitOnSlashes path));
+      foldl' selectModule tree (
+        # path axiomatically always starts with a slash
+        tail (
+          splitOnSlashes (
+            # get path relatvie to the current directory
+            if substring 0 1 relpath == "/" then relpath else toString (/. + current + "/${relpath}")
+          )
+        )
+      );
 
   recurse =
     path: def:
@@ -246,9 +235,7 @@ let
         modules = mapAttrs (name: recurse "${path}/${name}") (def.modules or { });
 
         args = {
-          inputs = mapAttrs (
-            _: input: (fetchModule (absModulePath self.path input.path)).args.options
-          ) self.inputs;
+          inputs = mapAttrs (_: input: (fetchModule self.path input.path).args.options) self.inputs;
           options =
             computeModuleOptions self.args "while computing '${self.path}' args" (
               evalParams.${self.path} or { }
