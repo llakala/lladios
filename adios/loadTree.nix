@@ -13,6 +13,7 @@ let
     foldl'
     functionArgs
     intersectAttrs
+    isAttrs
     isString
     listToAttrs
     mapAttrs
@@ -36,9 +37,17 @@ let
   # Lazy type check an attrset
   checkAttrsOfType =
     errorPrefix: type: value:
-    checkType errorPrefix types.attrs (
-      mapAttrs (name: checkType (errorPrefix + "in attribute '${name}'") type) value
-    );
+    if isAttrs value then
+      mapAttrs (
+        name: attr:
+        if type.verify attr == null then
+          attr
+        else
+          throw "${errorPrefix}: in attribute '${name}': ${type.verify attr}"
+
+      ) value
+    else
+      throw "${errorPrefix}: ${types.typeError "attrs" value}";
 
   checkOption =
     errorPrefix: option: value:
