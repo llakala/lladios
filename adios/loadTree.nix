@@ -17,7 +17,6 @@ let
     isString
     listToAttrs
     mapAttrs
-    split
     substring
     tail
     ;
@@ -186,9 +185,6 @@ let
       ) (attrNames options)
     );
 
-  # Split string by separator
-  splitString = sep: s: filter isString (split sep s);
-
   # Return absolute module path relative to pwd
   # absModulePath /foo /bar
   # => /bar
@@ -203,6 +199,19 @@ let
 
   # Get a module by it's / delimited path from the tree root
   fetchModule =
+    let
+      split = builtins.split "/";
+      splitOnSlashes = s: filter isString (split s);
+      selectModule =
+        module: tok:
+        if module ? modules.${tok} then
+          module.modules.${tok}
+        else
+          throw ''
+            Module path `${tok}` is not a child module of `${module.path}`.
+            Valid children of `${module.path}`: ${printList (attrNames module.modules)}
+          '';
+    in
     path:
     assert path != "";
     if path == "/" then
@@ -214,16 +223,7 @@ let
         Module paths should look like "/nixpkgs", which refers to `root.modules.nixpkgs`.
       ''
     else
-      foldl' (
-        module: tok:
-        if !module.modules ? ${tok} then
-          throw ''
-            Module path `${tok}` is not a child module of `${module.path}`.
-            Valid children of `${module.path}`: ${printList (attrNames module.modules)}
-          ''
-        else
-          module.modules.${tok}
-      ) tree (tail (splitString "/" path));
+      foldl' selectModule tree (tail (splitOnSlashes path));
 
   recurse =
     path: def:
