@@ -58,6 +58,7 @@ let
     all
     any
     attrNames
+    attrValues
     concatStringsSep
     elem
     elemAt
@@ -91,24 +92,20 @@ let
     name: verify: v:
     if verify v then null else typeError name v;
 
-  # Wrap builtins.all to return optional<string>, with string on error.
-  all' =
+  # Find the first element in a list that, when called with the given func,
+  # doesn't return null. Assumes that the list has already been checked with
+  # `all` and at least one element doesn't return null
+  findFirstError =
     func: list:
-    if all (v: func v == null) list then
-      null
-    else
-      # If an error was found, run the checks again to find the first error to return.
-      (
+    let
+      recurse =
+        i:
         let
-          recurse =
-            i:
-            let
-              v = elemAt list i;
-            in
-            if func v != null then func v else recurse (i + 1);
+          v = elemAt list i;
         in
-        recurse 0
-      );
+        if func v == null then recurse (i + 1) else func v;
+    in
+    recurse 0;
 
   fix =
     f:
@@ -274,13 +271,14 @@ fix (self: {
       inherit (t) verify;
     in
     self.typedef' name (
-      v:
-      if !isList v then
-        typeError name v
-      else if all' verify v == null then
+      list:
+      if !isList list then
+        typeError name list
+      else if all (elem: verify elem == null) list then
         null
       else
-        "in ${name} element: ${all' verify v}"
+        # If an error was found, run the checks again to find the first error to return.
+        "in ${name} element: ${findFirstError verify list}"
     );
 
   /*
@@ -298,7 +296,10 @@ fix (self: {
       if !isAttrs attrs then
         typeError name attrs
       else
-        all' (
+      if all (value: verify value == null) (attrValues attrs) then
+        null
+      else
+        findFirstError (
           key:
           if verify attrs.${key} == null then
             null
