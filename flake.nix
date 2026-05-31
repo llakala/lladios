@@ -1,6 +1,6 @@
 {
   description = "Adios";
-  outputs = { ... }: {
+  outputs = _: {
     adios = import ./adios;
   };
 }
