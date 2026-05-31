@@ -1,9 +1,5 @@
 # Types from adios
 types:
-# Self-reference for the result of this file
-tree:
-# Directly passed values for options in the eval stage
-evalParams:
 let
   inherit (builtins)
     attrNames
@@ -54,6 +50,96 @@ let
       throw "${errorPrefix}: type error: ${option.type.verify value}"
     else
       value;
+
+  # Merge lhs & rhs recursing into suboptions
+  mergeOptionsUnchecked =
+    options: lhs: rhs:
+    lhs
+    // rhs
+    // listToAttrs (
+      concatMap (
+        optionName:
+        let
+          option = options.${optionName};
+        in
+        if option ? options then
+          [
+            {
+              name = optionName;
+              value = mergeOptionsUnchecked option.options (lhs.${optionName} or { }) (rhs.${optionName} or { });
+            }
+          ]
+        else
+          [ ]
+      ) (attrNames options)
+    );
+in
+# Self-reference for the result of this file
+tree:
+let
+  # Get a module by it's / delimited path from the given current path
+  fetchModule =
+    let
+      split = builtins.split "/";
+      splitOnSlashes = s: filter isString (split s);
+      selectModule =
+        module: tok:
+        if module ? modules.${tok} then
+          module.modules.${tok}
+        else
+          throw ''
+            Module path `${tok}` is not a child module of `${module.path}`.
+            Valid children of `${module.path}`: ${printList (attrNames module.modules)}
+          '';
+    in
+    current: relpath:
+    assert relpath != "";
+    if relpath == "/" then
+      tree
+    else
+      foldl' selectModule tree (
+        # path axiomatically always starts with a slash
+        tail (
+          splitOnSlashes (
+            # get path relatvie to the current directory
+            if substring 0 1 relpath == "/" then relpath else toString (/. + current + "/${relpath}")
+          )
+        )
+      );
+
+  computeMutators =
+    modulePath: errorPrefix: name: option: params:
+    listToAttrs (
+      concatMap (
+        mutatorPath':
+        let
+          resolution = fetchModule modulePath mutatorPath';
+        in
+        # TODO: decide whether to error here, if a module didn't
+        # mutate when it was supposed to
+        if resolution.mutations ? ${modulePath}.${name} then
+          [
+            {
+              name = resolution.path;
+              value =
+                checkType "${errorPrefix}: while checking type of mutator '${resolution.path}'" option.mutatorType
+                  (callFunction resolution.mutations.${modulePath}.${name} resolution.args);
+            }
+          ]
+        else
+          [ ]
+      ) option.mutators
+      # If the mutators list is nonempty, have the value passed in eval/impl
+      # stage go through the mergeFunc, under the current module's name.
+      ++ optionals (params ? ${name}) [
+        {
+          name = modulePath;
+          value =
+            checkType "${errorPrefix}: while checking type of injected value" option.mutatorType
+              params.${name};
+        }
+      ]
+    );
 
   # Compute options from defaults & provided args
   computeOptions =
@@ -126,94 +212,10 @@ let
           [ ]
       ) (attrNames options)
     );
-
-  computeMutators =
-    modulePath: errorPrefix: name: option: params:
-    listToAttrs (
-      concatMap (
-        mutatorPath':
-        let
-          resolution = fetchModule modulePath mutatorPath';
-        in
-        # TODO: decide whether to error here, if a module didn't
-        # mutate when it was supposed to
-        if resolution.mutations ? ${modulePath}.${name} then
-          [
-            {
-              name = resolution.path;
-              value =
-                checkType "${errorPrefix}: while checking type of mutator '${resolution.path}'" option.mutatorType
-                  (callFunction resolution.mutations.${modulePath}.${name} resolution.args);
-            }
-          ]
-        else
-          [ ]
-      ) option.mutators
-      # If the mutators list is nonempty, have the value passed in eval/impl
-      # stage go through the mergeFunc, under the current module's name.
-      ++ optionals (params ? ${name}) [
-        {
-          name = modulePath;
-          value =
-            checkType "${errorPrefix}: while checking type of injected value" option.mutatorType
-              params.${name};
-        }
-      ]
-    );
-
-  # Merge lhs & rhs recursing into suboptions
-  mergeOptionsUnchecked =
-    options: lhs: rhs:
-    lhs
-    // rhs
-    // listToAttrs (
-      concatMap (
-        optionName:
-        let
-          option = options.${optionName};
-        in
-        if option ? options then
-          [
-            {
-              name = optionName;
-              value = mergeOptionsUnchecked option.options (lhs.${optionName} or { }) (rhs.${optionName} or { });
-            }
-          ]
-        else
-          [ ]
-      ) (attrNames options)
-    );
-
-  # Get a module by it's / delimited path from the given current path
-  fetchModule =
-    let
-      split = builtins.split "/";
-      splitOnSlashes = s: filter isString (split s);
-      selectModule =
-        module: tok:
-        if module ? modules.${tok} then
-          module.modules.${tok}
-        else
-          throw ''
-            Module path `${tok}` is not a child module of `${module.path}`.
-            Valid children of `${module.path}`: ${printList (attrNames module.modules)}
-          '';
-    in
-    current: relpath:
-    assert relpath != "";
-    if relpath == "/" then
-      tree
-    else
-      foldl' selectModule tree (
-        # path axiomatically always starts with a slash
-        tail (
-          splitOnSlashes (
-            # get path relatvie to the current directory
-            if substring 0 1 relpath == "/" then relpath else toString (/. + current + "/${relpath}")
-          )
-        )
-      );
-
+in
+# Directly passed values for options in the eval stage
+evalParams:
+let
   recurse =
     path: def:
     let
