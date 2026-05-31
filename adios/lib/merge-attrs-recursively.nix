@@ -1,5 +1,4 @@
 { toPretty }:
-{ mutators }:
 let
   inherit (builtins)
     zipAttrsWith
@@ -11,12 +10,15 @@ let
     ;
   isDerivation = value: (value.type or null) == "derivation";
 
-  f = zipAttrsWith (
+in
+{ mutators }:
+let
+  recurse = zipAttrsWith (
     key: values:
     if length values == 1 then
       head values
     else if all (value: isAttrs value && !isDerivation value) values then
-      f values
+      recurse values
     else
       throw ''
         While attempting to merge mutators:
@@ -25,4 +27,4 @@ let
         Unmergeable values: ${toPretty { multiline = false; } values}''
   );
 in
-f (attrValues mutators)
+recurse (attrValues mutators)
