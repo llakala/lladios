@@ -85,7 +85,12 @@ let
 
   toPretty = (import ./lib.nix).toPretty { indent = "    "; };
 
-  typeError = name: v: "Expected type '${name}' but value '${toPretty v}' failed the type check";
+  typeError =
+    # Name of the type as a string
+    name:
+    # value that failed the type check
+    v:
+    "Expected type '${name}' but value '${toPretty v}' failed the type check";
 
   # Builtin primitive checkers return a bool for indicating errors but we return optional<string>
   wrapBoolVerify =
@@ -153,6 +158,12 @@ fix (self: {
       # The name of the type without polymorphic metadata
       __name = head (split "<" name);
     };
+
+  /*
+    Basic error function. Used internally, but also useful to throw errors in a
+    custom type.
+  */
+  typeError = typeError;
 
   # Primitive types
 

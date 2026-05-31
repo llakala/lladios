@@ -81,6 +81,21 @@ Declare a custom type using an optional<string> function.
 : Verification function returning null on success & a string with error message on error.
 
 
+## `types.typeError`
+
+Basic error function. Used internally, but also useful to throw errors in a
+custom type.
+
+`name`
+
+: Name of the type as a string
+
+
+`v`
+
+: value that failed the type check
+
+
 ## `types.string`
 
 String
@@ -294,11 +309,6 @@ Custom struct verification functions can be added as such:
 ## `types.optionalAttr`
 
 optionalAttr<t>
-
-`t`
-
-: Function argument
-
 
 ## `types.enum`
 
