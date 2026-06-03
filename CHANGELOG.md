@@ -1,5 +1,15 @@
 Any new features or breaking changes will be listed here.
 
+# 6/3/2026
+
+- When writing a mergeFunc, `mutators` is now a list of values, instead of an attrset. This previously allowed checking
+  the name of an attribute to special-case mutations from certain paths, but this was never used from my knowledge, and
+  required constantly using `attrValues` inside mergeFuncs to ignore the names.
+
+- `adios.lib.merge.general.withPrio` has been renamed to `adios.lib.merge.general.withOrder`, and now sorts based on the
+  numeric value of `order =` instead of `priority =`. This is because we don't currently have a polymorphic merge
+  function that only allows unique definitions, and I'd like to avoid a naming collision on this in the future.
+
 # 5/11/2026
 
 - `types.optional` has been renamed to `types.nullOr`, and now warns on usage. While optional has a specific meaning in languages with sum

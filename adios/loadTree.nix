@@ -109,37 +109,29 @@ let
 
   computeMutators =
     modulePath: errorPrefix: name: option: params:
-    listToAttrs (
-      concatMap (
-        mutatorPath':
-        let
-          resolution = fetchModule modulePath mutatorPath';
-        in
-        # TODO: decide whether to error here, if a module didn't
-        # mutate when it was supposed to
-        if resolution.mutations ? ${modulePath}.${name} then
-          [
-            {
-              name = resolution.path;
-              value =
-                checkType "${errorPrefix}: while checking type of mutator '${resolution.path}'" option.mutatorType
-                  (callFunction resolution.mutations.${modulePath}.${name} resolution.args);
-            }
-          ]
-        else
-          [ ]
-      ) option.mutators
-      # If the mutators list is nonempty, have the value passed in eval/impl
-      # stage go through the mergeFunc, under the current module's name.
-      ++ optionals (params ? ${name}) [
-        {
-          name = modulePath;
-          value =
-            checkType "${errorPrefix}: while checking type of injected value" option.mutatorType
-              params.${name};
-        }
-      ]
-    );
+    concatMap (
+      mutatorPath':
+      let
+        resolution = fetchModule modulePath mutatorPath';
+      in
+      # TODO: decide whether to error here, if a module didn't
+      # mutate when it was supposed to
+      if resolution.mutations ? ${modulePath}.${name} then
+        [
+          (checkType "${errorPrefix}: while checking type of mutator '${resolution.path}'" option.mutatorType
+            (callFunction resolution.mutations.${modulePath}.${name} resolution.args)
+          )
+        ]
+      else
+        [ ]
+    ) option.mutators
+    # If the mutators list is nonempty, have the value passed in eval/impl
+    # stage go through the mergeFunc, under the current module's name.
+    ++ optionals (params ? ${name}) [
+      (checkType "${errorPrefix}: while checking type of injected value" option.mutatorType
+        params.${name}
+      )
+    ];
 
   # Compute options from defaults & provided args
   computeOptions =

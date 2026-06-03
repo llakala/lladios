@@ -62,4 +62,4 @@ zipAttrsWith (
     head values
   else
     makeErrorMessage mutators
-) (attrValues mutators)
+) mutators

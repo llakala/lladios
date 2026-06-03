@@ -27,4 +27,4 @@ let
         Unmergeable values: ${toPretty { multiline = false; } values}''
   );
 in
-recurse (attrValues mutators)
+recurse mutators

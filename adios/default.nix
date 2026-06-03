@@ -1,5 +1,5 @@
 let
-  inherit (builtins) attrValues concatLists concatStringsSep;
+  inherit (builtins) concatLists concatStringsSep;
 
   types = import ./types.nix {
     korora = import ../korora;
@@ -9,13 +9,18 @@ let
   lib = {
     importModules = import ./lib/importModules.nix { inherit adios; };
     merge = {
-      lists.concat = { mutators }: concatLists (attrValues mutators);
-      strings.concatLines = { mutators }: concatStringsSep "\n" (attrValues mutators);
+      lists.concat = { mutators }: concatLists mutators;
+      strings.concatLines = { mutators }: concatStringsSep "\n" mutators;
       attrs.flat = import ./lib/merge-attrs-flat.nix;
       attrs.recursively = import ./lib/merge-attrs-recursively.nix {
         inherit (import ../korora/lib.nix) toPretty;
       };
-      general.withPrio = import ./lib/withPrio.nix;
+      general.withPrio = throw ''
+        `adios.merge.general.withPrio` has been renamed to `adios.merge.general.withOrder`
+        This is because the function really sets ordering info, not priority,
+        and we may wish to add a withPrio function in the future
+      '';
+      general.withOrder = import ./lib/withOrder.nix;
     };
   };
 
