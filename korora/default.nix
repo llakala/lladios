@@ -97,18 +97,18 @@ let
     name: verify: v:
     if verify v then null else typeError name v;
 
-  # Find the first element in a list that, when called with the given func,
-  # doesn't return null. Assumes that the list has already been checked with
-  # `all` and at least one element doesn't return null
   findFirstError =
-    func: list:
+    # function to be called on every element of the list
+    verify:
+    # list where at least one value failed the typecheck
+    list:
     let
       recurse =
         i:
         let
           v = elemAt list i;
         in
-        if func v == null then recurse (i + 1) else func v;
+        if verify v == null then recurse (i + 1) else verify v;
     in
     recurse 0;
 
@@ -164,6 +164,13 @@ fix (self: {
     custom type.
   */
   typeError = typeError;
+
+  /*
+    Find the first element in a list that fails the given typecheck function.
+    Assumes that:
+    - the list has already been checked with `all`, and at least one element failed the typecheck
+  */
+  findFirstError = findFirstError;
 
   # Primitive types
 
