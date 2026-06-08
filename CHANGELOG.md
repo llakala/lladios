@@ -1,5 +1,41 @@
 Any new features or breaking changes will be listed here.
 
+# 6/9/2026
+
+- Input paths have been deprecated in favor of input _references_. Previously, the location of an input in the tree
+  was specified with a path-like syntax:
+  ```nix
+  inputs = {
+    foo.path = "/foo"; # absolute path from root module
+    bar.path = "../bar"; # sibling of current module
+    baz.path = "./baz"; # child of current module
+  };
+  ```
+  However, this was often a source of confusion for new users, because the path wasn't actually a filesystem path, even
+  though it appeared as such. Relative paths also were confusing to use, as the current module acted more like a folder
+  than a file, meaning `../sibling` was correct, not `./sibling`.
+
+  The new semantics look like this:
+  ```nix
+  inputs = {
+    foo.from = { root }: root.foo; # equivalent of absolute path
+    bar.from = { parent }: parent.bar; # sibling of current module
+    baz.from = { self }: self.baz; # child of current module
+  };
+  ```
+  The new semantics also allow going down multiple levels:
+  ```nix
+  inputs = {
+    child-of-foo.from = { root }: root.foo.child-of-foo;
+    niece.from = { parent }: parent.sibling.niece;
+    grandchild.from = { self }: self.child.grandchild;
+  };
+  ```
+  These new semantics are technically less powerful than the old version, as you can no longer fetch an "uncle module"
+  without referring to root. This is by design - references to `parent`, `self`, and `root` accomodate 90% of usecases
+  while keeping the API simple for new users. If a module set needs references to "uncle modules" that don't refer to
+  root, the module set's structure should likely be refactored.
+
 # 6/3/2026
 
 - When writing a mergeFunc, `mutators` is now a list of values, instead of an attrset. This previously allowed checking

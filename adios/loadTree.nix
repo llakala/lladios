@@ -13,8 +13,11 @@ let
     isString
     listToAttrs
     mapAttrs
+    seq
     substring
     tail
+    unsafeGetAttrPos
+    warn
     ;
 
   optionals = cond: list: if cond then list else [ ];
@@ -23,6 +26,13 @@ let
   callFunction = fn: attrs: fn (intersectAttrs (functionArgs fn) attrs);
 
   printList = list: "[${concatStringsSep ", " list}]";
+
+  addWarningWithLocation =
+    attrs: name: message:
+    let
+      loc = unsafeGetAttrPos name attrs;
+    in
+    if loc == null then x: x else warn "${message} in ${loc.file}:${toString loc.line}";
 
   # Check a single type with error prefix
   checkType =
@@ -73,12 +83,20 @@ let
           [ ]
       ) (attrNames options)
     );
+
+  modulePathWarning = warn ''
+    at least one of your Adios modules used `.path` to specify an input's location in the tree. This
+    has been deprecated in favor of `.from`.
+
+    See the lladios changelog for rationale and a migration guide:
+    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#692026
+  '' null;
 in
 # Self-reference for the result of this file
 tree:
 let
   # Get a module by it's / delimited path from the given current path
-  fetchModule =
+  fetchModuleByPath =
     let
       split = builtins.split "/";
       splitOnSlashes = s: filter isString (split s);
@@ -107,12 +125,35 @@ let
         )
       );
 
+  fetchModuleByFunction =
+    let
+      root = recurse tree;
+      recurse =
+        module:
+        mapAttrs (_: recurse) module.modules
+        // {
+          # gross - once we've recursed to the appropriate level, we need to
+          # actually get the module, but we don't want to disallow modules from
+          # being named certain things.
+          # instead, we store a functor that, when called, gives us the actual
+          # module definition. if anyone names their module __functor, they
+          # deserve what's coming to them.
+          __functor = _: _: module;
+        };
+    in
+    self: parent: inputFetcher:
+    callFunction inputFetcher {
+      inherit root;
+      parent = if parent.path == "/" then root else recurse parent;
+      self = recurse self;
+    } null;
+
   computeMutators =
     modulePath: errorPrefix: name: option: params:
     concatMap (
       mutatorPath':
       let
-        resolution = fetchModule modulePath mutatorPath';
+        resolution = fetchModuleByPath modulePath mutatorPath';
       in
       # TODO: decide whether to error here, if a module didn't
       # mutate when it was supposed to
@@ -209,9 +250,9 @@ in
 evalParams:
 let
   recurse =
-    path: def:
+    parent: path: def:
     let
-      errorPrefix = "in module '${path}'";
+      errorPrefix = "in module '${self.path}'";
       computeModuleOptions = computeOptions self.options self.path;
 
       result = callFunction self.impl self.args;
@@ -226,10 +267,22 @@ let
         mutations = checkAttrsOfType "${errorPrefix}: while checking 'mutations'" types.modules.mutation (
           def.mutations or { }
         );
-        modules = mapAttrs (name: recurse "${path}/${name}") (def.modules or { });
+        modules = mapAttrs (name: recurse self "${path}/${name}") (def.modules or { });
 
         args = {
-          inputs = mapAttrs (_: input: (fetchModule self.path input.path).args.options) self.inputs;
+          inputs = mapAttrs (
+            _: input:
+            (
+              if input ? from then
+                fetchModuleByFunction self parent input.from
+              else
+                seq modulePathWarning (
+                  addWarningWithLocation input "path" "deprecated module path" (
+                    fetchModuleByPath self.path input.path
+                  )
+                )
+            ).args.options
+          ) self.inputs;
           options =
             computeModuleOptions self.args "while computing '${self.path}' args" (
               evalParams.${self.path} or { }
@@ -281,4 +334,4 @@ let
     in
     self;
 in
-recurse ""
+recurse (throw "Attempted to access parent of root module, but the root module has no parent!") ""
