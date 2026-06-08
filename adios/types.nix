@@ -1,10 +1,9 @@
 { korora }:
 
 let
-  inherit (builtins) isString;
+  inherit (builtins) isFunction isString;
   inherit (korora)
     any
-    attrs
     attrsOf
     function
     listOf
@@ -74,12 +73,23 @@ let
       modules.subOptions
     ];
 
-    input = struct "input" {
-      # Note: The lack of a type for an input means no type checking done.
-      type = optionalAttr type;
-      # TODO: Narrow permitted chars
-      path = typedef "pathstring" isString;
-    };
+    input =
+      (struct "input" {
+        # Note: The lack of a type for an input means no type checking done.
+        type = optionalAttr type;
+        path = optionalAttr (typedef "pathstring" isString);
+        from = optionalAttr (typedef "from" isFunction);
+      }).override
+        {
+          verify =
+            attrs:
+            if attrs ? path && attrs ? from then
+              "'path' and 'from' are disjoint for a given input"
+            else if !attrs ? path && !attrs ? from then
+              "either 'path' or 'from' must be specified for a given input"
+            else
+              null;
+        };
 
     mutation = attrsOf function;
 
