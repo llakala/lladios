@@ -96,6 +96,22 @@ custom type.
 : value that failed the type check
 
 
+## `types.findFirstError`
+
+Find the first element in a list that fails the given typecheck function.
+Assumes that:
+- the list has already been checked with `all`, and at least one element failed the typecheck
+
+`verify`
+
+: function to be called on every element of the list
+
+
+`list`
+
+: list where at least one value failed the typecheck
+
+
 ## `types.string`
 
 String
