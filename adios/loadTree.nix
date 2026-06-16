@@ -17,8 +17,9 @@ let
     substring
     tail
     unsafeGetAttrPos
-    warn
     ;
+
+  warn = builtins.warn or builtins.trace;
 
   optionals = cond: list: if cond then list else [ ];
 
