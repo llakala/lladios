@@ -513,12 +513,12 @@ lib.fix (
       {
         testNotList = {
           expr = testTuple.verify "xyz";
-          expected = "in tuple<string, int>: Expected type 'tuple<string, int>' but value '\"xyz\"' failed the type check";
+          expected = "in tuple<string,int>: Expected type 'tuple<string,int>' but value '\"xyz\"' failed the type check";
         };
 
         testInvalidLength = {
           expr = testTuple.verify [ ];
-          expected = "in tuple<string, int>: Expected tuple to have length 2 but value '[ ]' has length 0";
+          expected = "in tuple<string,int>: Expected tuple to have length 2 but value '[ ]' has length 0";
         };
 
         testInvalidType = {
@@ -526,7 +526,7 @@ lib.fix (
             123
             "xyz"
           ];
-          expected = "in tuple<string, int>: in element 0: Expected type 'string' but value '123' failed the type check";
+          expected = "in tuple<string,int>: in element 0: Expected type 'string' but value '123' failed the type check";
         };
 
         testInvalidTypeTail = {
@@ -534,7 +534,7 @@ lib.fix (
             "xyz"
             "123"
           ];
-          expected = "in tuple<string, int>: in element 1: Expected type 'int' but value '\"123\"' failed the type check";
+          expected = "in tuple<string,int>: in element 1: Expected type 'int' but value '\"123\"' failed the type check";
         };
 
         testValid = {

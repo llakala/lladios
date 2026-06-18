@@ -546,7 +546,7 @@ fix (self: {
     members:
     assert isList members;
     let
-      name = "tuple<${concatStringsSep ", " (map (t: t.name) members)}>";
+      name = "tuple<${concatStringsSep "," (map (t: t.name) members)}>";
       len = length members;
       funcs = map (t: t.verify) members;
       verifyValue =
