@@ -1,5 +1,37 @@
 Any new features or breaking changes will be listed here.
 
+# 6/27/2026
+
+Calling `adios.lib.importModules` with a path directly has been deprecated in favor of:
+```nix
+root = {
+  modules = adios.lib.importModules {
+    directory = ./modules;
+  };
+}
+```
+
+This is to allow greater extensibility. `importModules` passes the Adios attrset to every single file, but this value
+for Adios is passed internally. This makes it impossible to add custom `lib` and `types` functions without importing the
+importModules file directly (which is very hacky).
+
+With the new form, you can change the args directly:
+
+```nix
+  modules = adios.lib.importModules {
+    directory = ./modules;
+    # if not set, args defaults to the internally-passed adios
+    args = adios // {
+      types = adios.types // {
+        inherit customType;
+      };
+      lib = adios.lib // {
+        inherit customFunction;
+      };
+    };
+  };
+```
+
 # 6/9/2026
 
 - Input paths have been deprecated in favor of input _references_. Previously, the location of an input in the tree
