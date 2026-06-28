@@ -90,7 +90,7 @@ let
     has been deprecated in favor of `.from`.
 
     See the lladios changelog for rationale and a migration guide:
-    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#692026
+    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#input-references
   '' null;
 in
 # Self-reference for the result of this file

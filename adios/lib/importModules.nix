@@ -71,6 +71,6 @@ if deprecatedParams then
     ```
 
     See the changelog for more info:
-    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#6272026'' result
+    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#structured-importmodules'' result
 else
   result
