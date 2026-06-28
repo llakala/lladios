@@ -8,6 +8,7 @@ let
   # Helper functions for users, accessed through `adios.lib`
   lib = {
     importModules = import ./lib/importModules.nix { inherit adios; };
+    inject = import ./lib/inject.nix;
     merge = {
       lists.concat = { mutators }: concatLists mutators;
       strings.concatLines = { mutators }: concatStringsSep "\n" mutators;
