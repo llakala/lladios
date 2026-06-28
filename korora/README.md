@@ -95,6 +95,9 @@ custom type.
 
 : value that failed the type check
 
+## `types.toPretty`
+
+Used internally, but also useful in documentation generation.
 
 ## `types.findFirstError`
 

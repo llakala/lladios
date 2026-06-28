@@ -151,6 +151,11 @@ fix (self: {
   typeError = typeError;
 
   /*
+    Used internally, but also useful in documentation generation.
+  */
+  toPretty = (import ./lib.nix).toPretty;
+
+  /*
     Find the first element in a list that fails the given typecheck function.
     Assumes that:
     - the list has already been checked with `all`, and at least one element failed the typecheck
