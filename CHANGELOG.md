@@ -1,5 +1,34 @@
 Any new features or breaking changes will be listed here.
 
+# First-class injections
+
+`adios.lib.inject` has been added, and is now recommended over `lib.recursiveUpdate` for injections.
+
+Previous usage of this form:
+
+```nix
+root = {
+  modules = lib.recursiveUpdate base (
+    adios.lib.importModules { directory = ./modules; }
+  );
+};
+```
+
+Should be replaced with:
+
+```nix
+root = {
+  modules = adios.lib.inject [
+    base
+    (adios.lib.importModules { directory = ./modules; })
+  ];
+};
+```
+
+`adios.lib.inject` is more optimized than `lib.recursiveUpdate`, and also offers additional functionality, where a
+module can read its "old" version before returning the injection. For more info, see [the
+docs](./doc/src/lib/inject/index.md).
+
 # Structured `importModules`
 
 Calling `adios.lib.importModules` with a path directly has been deprecated in favor of:
