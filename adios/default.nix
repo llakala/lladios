@@ -14,7 +14,7 @@ let
       strings.concatLines = { mutators }: concatStringsSep "\n" mutators;
       attrs.flat = import ./lib/merge-attrs-flat.nix;
       attrs.recursively = import ./lib/merge-attrs-recursively.nix {
-        inherit (import ../korora/lib.nix) toPretty;
+        inherit (types) toPretty;
       };
       general.withPrio = throw ''
         `adios.merge.general.withPrio` has been renamed to `adios.merge.general.withOrder`
