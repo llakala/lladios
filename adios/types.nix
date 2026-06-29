@@ -9,6 +9,7 @@ let
     listOf
     never
     optionalAttr
+    rename
     string
     struct
     type
@@ -95,7 +96,7 @@ let
 
     lib = union [
       function
-      (attrsOf modules.lib)
+      (attrsOf (rename "sublib" modules.lib))
     ];
   };
 
