@@ -1,5 +1,41 @@
 Any new features or breaking changes will be listed here.
 
+# Improved error formatting and messages
+
+Adios now uses Nix logic for handling error context, instead of passing around context manually with strings. This
+allows us to provide much more info in the stack trace, and makes errors much more readable by splitting them into
+multiple lines.
+
+Before, an Adios error trace would look like this:
+```
+    error: while computing '/less' args: in option 'configFile': type error: Expected type 'pathLike' but value '5' failed the type check
+```
+
+Now, it looks like this:
+```
+    … while calling '/mkWrapper': in option 'symlinks'
+
+    … in '/fish': in option 'interactiveShellInit'
+
+    … in '/fish': in mutator '/starship' of option 'interactiveShellInit'
+
+    … while calling '/mkWrapper': in option 'symlinks'
+
+    … while calling '/mkWrapper': in option 'environment'
+
+    … in '/less': in option 'configFile'
+
+    (stack trace truncated; use '--show-trace' to show the full, detailed trace)
+
+    error: Expected type 'pathLike' but value '5' failed the type check
+```
+
+This is hopefully the start of improved error messaging from Adios. Some information is still not printed, and ideally
+the position of the error would be displayed (although this may be more difficult than it appears, due to position
+information being lost on certain builtins).
+
+Note that on Lix, the full error trace may not be visible without `--show-trace`.
+
 # Improved check function
 
 The `check` function produced by the Adios type system has a new signature. Previously, `check` would take two valuse:

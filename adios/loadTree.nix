@@ -2,6 +2,7 @@
 types:
 let
   inherit (builtins)
+    addErrorContext
     attrNames
     concatMap
     concatStringsSep
@@ -35,32 +36,24 @@ let
     in
     if loc == null then x: x else warn "${message} in ${loc.file}:${toString loc.line}";
 
-  # Check a single type with error prefix
-  checkType =
-    errorPrefix: type: value:
-    if type.verify value == null then value else throw "${errorPrefix}: ${type.verify value}";
+  checks = {
+    option = types.modules.option.check;
+    input = types.modules.input.check;
+    mutation = types.modules.mutation.check;
+    lib = types.modules.lib.check;
+    typedef = types.modules.typedef.check;
+    impl = types.function.check; # TODO: add an attribute to types.modules for this
 
-  # Lazy type check an attrset
-  checkAttrsOfType =
-    errorPrefix: type: value:
-    if isAttrs value then
-      mapAttrs (
-        name: attr:
-        if type.verify attr == null then
-          attr
-        else
-          throw "${errorPrefix}: in attribute '${name}': ${type.verify attr}"
-
-      ) value
-    else
-      throw "${errorPrefix}: ${types.typeError "attrs" value}";
-
-  checkOption =
-    errorPrefix: option: value:
-    if option.type.verify value != null then
-      throw "${errorPrefix}: type error: ${option.type.verify value}"
-    else
-      value;
+    # Lazy type check an attrset
+    attrsOfType =
+      errorPrefix: check: attrs:
+      if isAttrs attrs then
+        mapAttrs (
+          name: value: addErrorContext errorPrefix (addErrorContext "in attribute '${name}'" (check value))
+        ) attrs
+      else
+        addErrorContext errorPrefix (throw (types.typeError "attrs" attrs));
+  };
 
   # Merge lhs & rhs recursing into suboptions
   mergeOptionsUnchecked =
@@ -160,9 +153,9 @@ let
       # mutate when it was supposed to
       if resolution.mutations ? ${modulePath}.${name} then
         [
-          (checkType "${errorPrefix}: while checking type of mutator '${resolution.path}'" option.mutatorType
-            (callFunction resolution.mutations.${modulePath}.${name} resolution.args)
-          )
+          (addErrorContext "${errorPrefix}: in mutator '${resolution.path}' of option '${name}'" (
+            option.mutatorType.check (callFunction resolution.mutations.${modulePath}.${name} resolution.args)
+          ))
         ]
       else
         [ ]
@@ -170,9 +163,11 @@ let
     # If the mutators list is nonempty, have the value passed in eval/impl
     # stage go through the mergeFunc, under the current module's name.
     ++ optionals (params ? ${name}) [
-      (checkType "${errorPrefix}: while checking type of injected value" option.mutatorType
-        params.${name}
-      )
+      # TODO: improve this error message to make it clearer what "outside
+      # mutator" is
+      (addErrorContext "${errorPrefix}: in outside mutator of option '${name}'" (
+        option.mutatorType.check params.${name}
+      ))
     ];
 
   # Compute options from defaults & provided args
@@ -181,10 +176,10 @@ let
     options:
     # Path from root of the current module
     modulePath:
+    # why the given module had to compute the options
+    reasonForError:
     # Computed args fixpoint
     args:
-    # Error prefix string
-    errorPrefix:
     # parameters given explicitly in eval/impl stage
     params:
     listToAttrs (
@@ -192,7 +187,7 @@ let
         name:
         let
           option = options.${name};
-          errorPrefix' = "${errorPrefix}: in option '${name}'";
+          errorMessage = "${reasonForError} '${modulePath}': in option '${name}'";
         in
         # Gross hack - if you want to always go through the mergeFunc,
         # set `mutators = []`.
@@ -200,12 +195,14 @@ let
           [
             {
               inherit name;
-              value = checkOption errorPrefix' option (
-                callFunction option.mergeFunc (
-                  args
-                  // {
-                    mutators = computeMutators modulePath errorPrefix' name option params;
-                  }
+              value = addErrorContext errorMessage (
+                option.type.check (
+                  callFunction option.mergeFunc (
+                    args
+                    // {
+                      mutators = computeMutators modulePath "${reasonForError} '${modulePath}'" name option params;
+                    }
+                  )
                 )
               );
             }
@@ -213,7 +210,7 @@ let
         # Compute nested options
         else if option ? options then
           let
-            value = computeOptions option.options modulePath args errorPrefix' (params.${name} or { });
+            value = computeOptions option.options modulePath reasonForError args (params.${name} or { });
           in
           # Only return a value if suboptions actually returned anything
           if value != { } then [ { inherit name value; } ] else [ ]
@@ -222,7 +219,7 @@ let
           [
             {
               inherit name;
-              value = checkOption errorPrefix' option params.${name};
+              value = addErrorContext errorMessage (option.type.check params.${name});
             }
           ]
         # Default value
@@ -230,7 +227,7 @@ let
           [
             {
               inherit name;
-              value = checkOption errorPrefix' option option.default;
+              value = addErrorContext errorMessage (option.type.check option.default);
             }
           ]
         # Computed default value
@@ -239,7 +236,7 @@ let
             {
               # Compute value with args fixpoint
               inherit name;
-              value = checkOption errorPrefix' option (callFunction option.defaultFunc args);
+              value = addErrorContext errorMessage (option.type.check (callFunction option.defaultFunc args));
             }
           ]
         else
@@ -253,19 +250,17 @@ let
   recurse =
     parent: path: def:
     let
-      errorPrefix = "in module '${self.path}'";
       computeModuleOptions = computeOptions self.options self.path;
+      errorPrefix = "in definition of '${self.path}'";
 
       result = callFunction self.impl self.args;
       self = {
         path = if path == "" then "/" else path;
-        options = checkAttrsOfType "${errorPrefix}: while checking 'options'" types.modules.option (
+        options = checks.attrsOfType "${errorPrefix}: in attribute 'options'" checks.option (
           def.options or { }
         );
-        inputs = checkAttrsOfType "${errorPrefix}: while checking 'inputs'" types.modules.input (
-          def.inputs or { }
-        );
-        mutations = checkAttrsOfType "${errorPrefix}: while checking 'mutations'" types.modules.mutation (
+        inputs = checks.attrsOfType "${errorPrefix}: in attribute 'inputs'" checks.input (def.inputs or { });
+        mutations = checks.attrsOfType "${errorPrefix}: in attribute 'mutations'" checks.mutation (
           def.mutations or { }
         );
         modules = mapAttrs (name: recurse self "${path}/${name}") (def.modules or { });
@@ -285,9 +280,7 @@ let
             ).args.options
           ) self.inputs;
           options =
-            computeModuleOptions self.args "while computing '${self.path}' args" (
-              evalParams.${self.path} or { }
-            )
+            computeModuleOptions "in" self.args (evalParams.${self.path} or { })
             # If the current module has an impl, include it in the computed args,
             # so the module can be called inside the tree
             // {
@@ -296,16 +289,16 @@ let
         };
 
         # We can avoid optionalAttrs merging with null attribute names
-        ${if def ? lib then "lib" else null} =
-          checkType "${errorPrefix}: while checking 'lib'" types.modules.lib
-            def.lib;
+        ${if def ? lib then "lib" else null} = addErrorContext "${errorPrefix}: in attribute 'lib'" (
+          checks.lib def.lib
+        );
         ${if def ? types then "types" else null} =
-          checkAttrsOfType "${errorPrefix}: while checking 'types'" types.modules.typedef
+          checks.attrsOfType "${errorPrefix}: in attribute 'types'" checks.typedef
             def.types;
+        ${if def ? impl then "impl" else null} = addErrorContext "${errorPrefix}: in attribute 'impl'" (
+          checks.impl def.impl
+        );
 
-        ${if def ? impl then "impl" else null} =
-          checkType "${errorPrefix}: while checking 'impl'" types.function
-            def.impl;
         ${if def ? impl then "__functor" else null} =
           _: implParams:
           if implParams == { } then
@@ -317,7 +310,7 @@ let
               args = {
                 inherit (self.args) inputs;
                 options =
-                  computeModuleOptions args "while calling '${self.path}'" (
+                  computeModuleOptions "while calling" args (
                     if evalParams ? ${self.path} then
                       mergeOptionsUnchecked self.options evalParams.${self.path} implParams
                     else
