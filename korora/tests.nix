@@ -593,7 +593,7 @@ lib.fix (
               children = {
                 x = "hello";
               };
-            } null;
+            };
             expectedError.type = "ThrownError";
           };
         };
@@ -635,7 +635,7 @@ lib.fix (
                   int = 1;
                 };
               };
-            } null;
+            };
             expectedError.type = "ThrownError";
           };
         };

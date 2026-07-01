@@ -1,5 +1,18 @@
 Any new features or breaking changes will be listed here.
 
+# Improved check function
+
+The `check` function produced by the Adios type system has a new signature. Previously, `check` would take two valuse:
+the value to be typechecked, and the value that should be returned on success. On failure, it would throw. However, this
+wasn't very useful, as checks typically just want to return the value on success.
+
+The `check` function now only takes the value itself, which will be returned on success, instead of a customizable
+default. In the future, Adios options may support `apply` semantics, to better support the usecase of the previous
+signature.
+
+A change like this would typically be done with a warning first, but `check` is an internal field of the type system
+that makes no stability guarantees, so anyone relying on the old signature will get an error.
+
 # First-class injections
 
 `adios.lib.inject` has been added, and is now recommended over `lib.recursiveUpdate` for injections.
