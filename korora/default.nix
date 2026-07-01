@@ -41,9 +41,9 @@
     value = 1;
 
     # Same error as previous example, but `check` throws.
-    value = t.check value value;
+    result = t.check value;
 
-  in value
+  in result
   ```
 
   On error `check` throws. On success it returns the value that was passed in.
@@ -121,7 +121,7 @@ fix (self: {
     {
       inherit name;
       verify = wrapBoolVerify name verify;
-      check = v: v2: if verify v then v2 else throw (typeError name v);
+      check = v: if verify v then v else throw (typeError name v);
 
       # The name of the type without polymorphic metadata
       __name = head (split "<" name);
@@ -138,7 +138,7 @@ fix (self: {
     assert isFunction verify;
     {
       inherit name verify;
-      check = v: v2: if verify v == null then v2 else throw (verify v);
+      check = v: if verify v == null then v else throw (verify v);
 
       # The name of the type without polymorphic metadata
       __name = head (split "<" name);
