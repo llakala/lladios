@@ -31,6 +31,8 @@ let
           typesT
         ]).verify;
 
+    impl = function;
+
     nonMutableOption =
       (struct "option" {
         inherit type;

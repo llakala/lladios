@@ -42,7 +42,7 @@ let
     mutation = types.modules.mutation.check;
     lib = types.modules.lib.check;
     typedef = types.modules.typedef.check;
-    impl = types.function.check; # TODO: add an attribute to types.modules for this
+    impl = types.modules.impl.check;
 
     # Lazy type check an attrset
     attrsOfType =
