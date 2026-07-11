@@ -15,38 +15,40 @@ Named after the [little penguin](https://www.doc.govt.nz/nature/native-animals/b
 - Verification
 
 Basic verification is done with the type function `verify`:
-``` nix
+
+```nix
 { korora }:
 let
   t = korora.string;
-
   value = 1;
 
   # Error contains the string "Expected type 'string' but value '1' is of type 'int'"
   error = t.verify 1;
-
-in if error != null then throw error else value
+in
+if error != null then throw error else value
 ```
-Errors are returned as a string.
-On success `null` is returned.
+
+On success, `verify` returns null.
+On failure, it returns an error message.
 
 - Checking (assertions)
 
 For convenience you can also check a value on-the-fly:
-``` nix
+
+```nix
 { korora }:
 let
   t = korora.string;
-
   value = 1;
 
   # Same error as previous example, but `check` throws.
-  value = t.check value value;
-
-in value
+  result = t.check value;
+in
+result
 ```
 
-On error `check` throws. On success it returns the value that was passed in.
+On success, `check` returns the value that was passed in.
+On failure, it throws an error message.
 
 # Examples
 For usage example see [tests.nix](./tests.nix).
