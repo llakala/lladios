@@ -92,11 +92,6 @@ let
     v:
     "Expected type '${name}' but value '${toPretty v}' failed the type check";
 
-  # Builtin primitive checkers return a bool for indicating errors but we return optional<string>
-  wrapBoolVerify =
-    name: verify: v:
-    if verify v then null else typeError name v;
-
   fix =
     f:
     let
@@ -120,7 +115,7 @@ fix (self: {
     assert isFunction verify;
     {
       inherit name;
-      verify = wrapBoolVerify name verify;
+      verify = v: if verify v then null else typeError name v;
       check = v: if verify v then v else throw (typeError name v);
 
       # The name of the type without polymorphic metadata
