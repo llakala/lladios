@@ -24,7 +24,7 @@ let
 
   optionals = cond: list: if cond then list else [ ];
 
-  # Call a function with only it's supported attributes.
+  # Call a function with only its supported attributes.
   callFunction = fn: attrs: fn (intersectAttrs (functionArgs fn) attrs);
 
   printList = list: "[${concatStringsSep ", " list}]";
@@ -89,7 +89,7 @@ in
 # Self-reference for the result of this file
 tree:
 let
-  # Get a module by it's / delimited path from the given current path
+  # Get a module by its / delimited path from the given current path
   fetchModuleByPath =
     let
       split = builtins.split "/";
