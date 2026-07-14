@@ -475,6 +475,7 @@ fix (self: {
   */
   rename =
     name: type:
+    # TODO: properly handle optionalAttr
     self.new {
       inherit name;
       inherit (type) verify;
