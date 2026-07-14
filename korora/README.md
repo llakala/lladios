@@ -23,12 +23,12 @@ let
   value = 1;
 
   # Error contains the string "Expected type 'string' but value '1' is of type 'int'"
-  error = t.verify 1;
+  valid = t.verify 1;
 in
-if error != null then throw error else value
+if valid == true then value else throw valid
 ```
 
-On success, `verify` returns null.
+On success, `verify` returns true.
 On failure, it returns an error message.
 
 - Checking (assertions)
@@ -66,7 +66,7 @@ Declare a custom type using a bool function
 
 `verify`
 
-: Verification function returning a bool.
+: Basic verification function returning a bool.
 
 
 ## `types.typedef'`
@@ -81,6 +81,22 @@ Declare a custom type using an optional<string> function.
 `verify`
 
 : Verification function returning null on success & a string with error message on error.
+
+
+## `types.new`
+
+Declare a custom type.
+Must either be passed a `validate` or `verify` function.
+
+structured function argument
+
+: `name`
+
+  : Name of the type as a string
+
+  `verify`
+
+  : Verification function. Returns true on success and false on failure. To return a custom error message, return a string.
 
 
 ## `types.typeError`

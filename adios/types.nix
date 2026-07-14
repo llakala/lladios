@@ -13,8 +13,6 @@ let
     string
     struct
     type
-    typedef
-    typedef'
     union
     ;
 
@@ -23,13 +21,15 @@ let
   typesT = attrsOf modules.typedef;
 
   modules = {
-    typedef =
-      typedef' "typedef"
+    typedef = korora.new {
+      name = "typedef";
+      verify =
         (union [
           function
           type
           typesT
         ]).verify;
+    };
 
     impl = function;
 
@@ -47,7 +47,7 @@ let
             if option ? default && option ? defaultFunc then
               "'default' & 'defaultFunc' are mutually exclusive"
             else
-              null;
+              true;
         };
 
     mutableOption = struct "mutableOption" {
@@ -80,8 +80,18 @@ let
       (struct "input" {
         # Note: The lack of a type for an input means no type checking done.
         type = optionalAttr type;
-        path = optionalAttr (typedef "pathstring" isString);
-        from = optionalAttr (typedef "from" isFunction);
+        path = optionalAttr (
+          korora.new {
+            name = "pathstring";
+            verify = isString;
+          }
+        );
+        from = optionalAttr (
+          korora.new {
+            name = "from";
+            verify = isFunction;
+          }
+        );
       }).override
         {
           verify =
@@ -91,7 +101,7 @@ let
             else if !attrs ? path && !attrs ? from then
               "either 'path' or 'from' must be specified for a given input"
             else
-              null;
+              true;
         };
 
     mutation = attrsOf function;

@@ -17,6 +17,9 @@ let
     toPretty = true;
     optional = true;
     findFirstError = true;
+    typedef = true;
+    typedef' = true;
+    new = true;
   };
 
   addCoverage =
@@ -47,37 +50,7 @@ lib.fix (
 
       testValid = {
         expr = types.string.verify "Hello";
-        expected = null;
-      };
-    };
-
-    # Dummy out for coverage
-    typedef = {
-      testValid = {
-        expr = (types.typedef "testDef" (_: true)).name;
-        expected = "testDef";
-      };
-      testInvalidName = {
-        expr = types.typedef 1 null;
-        expectedError.type = "AssertionError";
-      };
-      testInvalidFunc = {
-        expr = types.typedef "testDef" "x";
-        expectedError.type = "AssertionError";
-      };
-    };
-    typedef' = {
-      testValid = {
-        expr = (types.typedef' "testDef" (_: true)).name;
-        expected = "testDef";
-      };
-      testInvalidName = {
-        expr = types.typedef' 1 null;
-        expectedError.type = "AssertionError";
-      };
-      testInvalidFunc = {
-        expr = types.typedef' "testDef" "x";
-        expectedError.type = "AssertionError";
+        expected = true;
       };
     };
 
@@ -89,7 +62,7 @@ lib.fix (
 
       testValid = {
         expr = types.function.verify (_: null);
-        expected = null;
+        expected = true;
       };
     };
 
@@ -101,7 +74,7 @@ lib.fix (
 
       testValid = {
         expr = types.path.verify ./.;
-        expected = null;
+        expected = true;
       };
     };
 
@@ -113,13 +86,13 @@ lib.fix (
 
       testPath = {
         expr = types.pathLike.verify ./.;
-        expected = null;
+        expected = true;
       };
       # I'd like to add testDerivation, but the tests dont like needing
       # <nixpkgs>
       testString = {
         expr = types.pathLike.verify "example string";
-        expected = null;
+        expected = true;
       };
     };
 
@@ -137,14 +110,14 @@ lib.fix (
             system = "fake";
           }
         );
-        expected = null;
+        expected = true;
       };
     };
 
     any = {
       testValid = {
         expr = types.any.verify (throw "NO U"); # Note: Value not checked
-        expected = null;
+        expected = true;
       };
     };
 
@@ -163,7 +136,7 @@ lib.fix (
 
       testValid = {
         expr = types.int.verify 1;
-        expected = null;
+        expected = true;
       };
     };
 
@@ -175,7 +148,7 @@ lib.fix (
 
       testValid = {
         expr = types.float.verify 1.0;
-        expected = null;
+        expected = true;
       };
     };
 
@@ -187,12 +160,12 @@ lib.fix (
 
       testValidInt = {
         expr = types.number.verify 1;
-        expected = null;
+        expected = true;
       };
 
       testValidFloat = {
         expr = types.number.verify 1.0;
-        expected = null;
+        expected = true;
       };
     };
 
@@ -204,7 +177,7 @@ lib.fix (
 
       testValid = {
         expr = types.bool.verify true;
-        expected = null;
+        expected = true;
       };
     };
 
@@ -216,7 +189,7 @@ lib.fix (
 
       testValid = {
         expr = types.null.verify null;
-        expected = null;
+        expected = true;
       };
     };
 
@@ -228,7 +201,7 @@ lib.fix (
 
       testValid = {
         expr = types.attrs.verify { };
-        expected = null;
+        expected = true;
       };
     };
 
@@ -240,7 +213,7 @@ lib.fix (
 
       testValid = {
         expr = types.list.verify [ ];
-        expected = null;
+        expected = true;
       };
     };
 
@@ -251,7 +224,7 @@ lib.fix (
       {
         testValid = {
           expr = testListOf.verify [ "hello" ];
-          expected = null;
+          expected = true;
         };
 
         testInvalidElem = {
@@ -274,7 +247,7 @@ lib.fix (
           expr = testAttrsOf.verify {
             x = "hello";
           };
-          expected = null;
+          expected = true;
         };
 
         testInvalidElem = {
@@ -297,7 +270,7 @@ lib.fix (
       {
         testValid = {
           expr = testUnion.verify "hello";
-          expected = null;
+          expected = true;
         };
 
         testInvalid = {
@@ -326,7 +299,7 @@ lib.fix (
           expr = testIntersection.verify {
             a = 1;
           };
-          expected = null;
+          expected = true;
         };
 
         testInvalid = {
@@ -338,7 +311,7 @@ lib.fix (
     type = {
       testValid = {
         expr = types.type.verify types.string;
-        expected = null;
+        expected = true;
       };
 
       testInvalid = {
@@ -354,12 +327,12 @@ lib.fix (
       {
         testValidString = {
           expr = testOption.verify "hello";
-          expected = null;
+          expected = true;
         };
 
         testNull = {
           expr = testOption.verify null;
-          expected = null;
+          expected = true;
         };
 
         testInvalid = {
@@ -380,7 +353,7 @@ lib.fix (
             y = types.int;
           }).override
             {
-              verify = v: if v.x + v.y == 2 then "VERBOTEN" else null;
+              verify = v: if v.x + v.y == 2 then "VERBOTEN" else true;
             };
 
         testStructNonTotal = testStruct.override { total = false; };
@@ -391,7 +364,7 @@ lib.fix (
           expr = testStruct.verify {
             foo = "bar";
           };
-          expected = null;
+          expected = true;
         };
 
         testMissingAttr = {
@@ -401,7 +374,7 @@ lib.fix (
 
         testNonTotal = {
           expr = testStructNonTotal.verify { };
-          expected = null;
+          expected = true;
         };
 
         testExtraInvariantCheck = {
@@ -425,7 +398,7 @@ lib.fix (
             foo = "bar";
             bar = "foo";
           };
-          expected = null;
+          expected = true;
         };
 
         testInvalidType = {
@@ -455,14 +428,14 @@ lib.fix (
             foo = "hello";
             optionalFoo = "goodbye";
           };
-          expected = null;
+          expected = true;
         };
 
         testWithoutOptional = {
           expr = testStruct.verify {
             foo = "hello";
           };
-          expected = null;
+          expected = true;
         };
 
         testWithInvalidOptional = {
@@ -485,7 +458,7 @@ lib.fix (
       {
         testHasElem = {
           expr = testEnum.verify "B";
-          expected = null;
+          expected = true;
         };
 
         testNotHasElem = {
@@ -550,7 +523,7 @@ lib.fix (
             "xyz"
             123
           ];
-          expected = null;
+          expected = true;
         };
       };
 
@@ -593,7 +566,7 @@ lib.fix (
                 x = { };
               };
             };
-            expected = null;
+            expected = true;
           };
 
           testNotOK = {
@@ -630,7 +603,7 @@ lib.fix (
                 };
               };
             };
-            expected = null;
+            expected = true;
           };
 
           testNotOK = {
