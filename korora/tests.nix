@@ -529,25 +529,46 @@ lib.fix (
 
     defun =
       let
-        fn = types.defun "fn" [ types.string ] types.string (s: s + "-checked");
+        check1 = types.defun "fn" [ types.string ] types.string;
+        fn1 = check1 (s: "${s}-checked");
+        check2 = types.defun "fn2" [ types.string types.int ] types.string;
+        fn2 = check2 (s: n: "${s}-${toString n}-checked");
       in
       {
         testOk = {
-          expr = fn "foo";
+          expr = fn1 "foo";
           expected = "foo-checked";
         };
 
-        testWrongArgType = {
-          expr = fn 1;
+        testWrongArg = {
+          expr = fn1 1;
           expectedError.type = "ThrownError";
         };
 
-        testWrongArgReturn =
+        testWrongReturn =
           let
-            fn = types.defun "fn" [ types.string ] types.string (_: 2);
+            fn = check1 (_: 2);
           in
           {
             expr = fn "foo";
+            expectedError.type = "ThrownError";
+          };
+
+        testMultipleOk = {
+          expr = fn2 "bar" 0;
+          expected = "bar-0-checked";
+        };
+
+        testMultipleWrongArg = {
+          expr = fn2 "bar" true;
+          expectedError.type = "ThrownError";
+        };
+        testMultipleWrongReturn =
+          let
+            fn = check1 (_: [ ]);
+          in
+          {
+            expr = fn "bar" 0;
             expectedError.type = "ThrownError";
           };
       };

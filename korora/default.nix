@@ -65,7 +65,6 @@ let
     elem
     elemAt
     foldl'
-    genList
     head
     isAttrs
     isBool
@@ -696,31 +695,29 @@ fix (self: {
     Create a wrapped type checked function.
   */
   defun =
-    name: types:
+    name: paramTypes: resultType:
     let
-      errorPrefix = "while calling '${name}'";
-      verifyFuncs = map (type: type.verify) types;
-    in
-    T: f:
-    foldl'
-      (
-        fun: idx:
-        let
-          verify = elemAt verifyFuncs idx;
-        in
-        value:
-        if verify value != true then
-          throw "${errorPrefix}: while checking argument ${toString idx}: ${verify value}"
+      verifyFuncs = map (type: type.verify) paramTypes;
+      len = length paramTypes;
+      verifyResult = resultType.verify;
+      recurse =
+        idx: acc:
+        if idx != len then
+          # more parameters need to be passed to the function
+          let
+            verify = elemAt verifyFuncs idx;
+          in
+          value:
+          if verify value == true then
+            recurse (idx + 1) (acc value)
+          else
+            throw "while calling '${name}': while checking argument ${toString idx}: ${verify value}"
         else
-          fun value
-      )
-      (
-        arg:
-        let
-          value = f arg;
-          err = T.verify value;
-        in
-        if err != true then throw "${errorPrefix}: while checking return type: ${err}" else value
-      )
-      (genList (i: i) (length types));
+        # all parameters have been passed, check return value
+        if verifyResult acc == true then
+          acc
+        else
+          throw "while calling '${name}': while checking return type: ${verifyResult acc}";
+    in
+    recurse 0;
 })
