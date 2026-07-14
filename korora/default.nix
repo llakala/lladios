@@ -23,12 +23,12 @@
     value = 1;
 
     # Error contains the string "Expected type 'string' but value '1' is of type 'int'"
-    error = t.verify 1;
+    valid = t.verify 1;
   in
-  if error != null then throw error else value
+  if valid == true then value else throw valid
   ```
 
-  On success, `verify` returns null.
+  On success, `verify` returns true.
   On failure, it returns an error message.
 
   - Checking (assertions)
@@ -76,8 +76,10 @@ let
     isPath
     isString
     length
+    seq
     split
     ;
+  warn = builtins.warn or builtins.trace;
 
   isDerivation = value: value.type or null == "derivation";
 
@@ -101,6 +103,21 @@ let
     in
     x;
 
+  addTypedefWarning = warn ''
+    At least one of your Adios modules used `types.typedef` or `types.typedef'`.
+    These functions have been deprecated in favor of `types.new`.
+
+    See the lladios changelog for rationale and a migration guide:
+    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#new-typedef-function
+  '' null;
+  addNullWarning = warn ''
+    At least one of your Adios typechecks returned null.
+    On success, typechecks should now return a string.
+
+    See the lladios changelog for rationale and a migration guide:
+    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#new-typedef-function
+  '' null;
+
 in
 fix (self: {
 
@@ -112,16 +129,10 @@ fix (self: {
   typedef =
     # Name of the type as a string
     name:
-    # Verification function returning a bool.
+    # Basic verification function returning a bool.
     verify:
-    assert isFunction verify;
-    {
-      inherit name;
-      verify = v: if verify v then null else typeError name v;
-      check = v: if verify v then v else throw (typeError name v);
-
-      # The name of the type without polymorphic metadata
-      __name = head (split "<" name);
+    seq addTypedefWarning self.new {
+      inherit name verify;
     };
 
   /*
@@ -132,13 +143,55 @@ fix (self: {
     name:
     # Verification function returning null on success & a string with error message on error.
     verify:
+    seq addTypedefWarning self.new {
+      inherit name verify;
+    };
+
+  /*
+    Declare a custom type.
+    Must either be passed a `validate` or `verify` function.
+  */
+  new =
+    {
+      # Name of the type as a string
+      name,
+      # Verification function.
+      # Returns true on success and false on failure.
+      # To return a custom error message, return a string.
+      verify,
+    }:
     assert isFunction verify;
     {
-      inherit name verify;
-      check = v: if verify v == null then v else throw (verify v);
-
-      # The name of the type without polymorphic metadata
+      inherit name;
       __name = head (split "<" name);
+      verify =
+        v:
+        let
+          result = verify v;
+        in
+        if result == true then
+          true
+        else if result == false then
+          typeError name v
+        else if isString result then
+          result
+        else
+          assert result == null;
+          seq addNullWarning true;
+      check =
+        v:
+        let
+          result = verify v;
+        in
+        if result == true then
+          v
+        else if result == false then
+          throw (typeError name v)
+        else if isString result then
+          throw result
+        else
+          assert result == null;
+          seq addNullWarning v;
     };
 
   /*
@@ -168,7 +221,7 @@ fix (self: {
         let
           v = elemAt list i;
         in
-        if verify v == null then recurse (i + 1) else verify v;
+        if verify v == true then recurse (i + 1) else verify v;
     in
     recurse 0;
 
@@ -177,82 +230,125 @@ fix (self: {
   /*
     String
   */
-  string = self.typedef "string" isString;
+  string = self.new {
+    name = "string";
+    verify = isString;
+  };
 
   /*
     Any
   */
-  any = self.typedef' "any" (_: null);
+  any = self.new {
+    name = "any";
+    verify = _: true;
+  };
 
   /*
     Never
   */
-  never = self.typedef "never" (_: false);
+  never = self.new {
+    name = "never";
+    verify = _: false;
+  };
 
   /*
     Int
   */
-  int = self.typedef "int" isInt;
+  int = self.new {
+    name = "int";
+    verify = isInt;
+  };
 
   /*
     Single precision floating point
   */
-  float = self.typedef "float" isFloat;
+  float = self.new {
+    name = "float";
+    verify = isFloat;
+  };
 
   /*
     Either an int or a float
   */
-  number = self.typedef "number" (v: isInt v || isFloat v);
+  number = self.new {
+    name = "number";
+    verify = v: isInt v || isFloat v;
+  };
 
   /*
     Bool
   */
-  bool = self.typedef "bool" isBool;
+  bool = self.new {
+    name = "bool";
+    verify = isBool;
+  };
 
   /*
     Null
   */
-  null = self.typedef "null" isNull;
+  null = self.new {
+    name = "null";
+    verify = isNull;
+  };
 
   /*
     Attribute with undefined attribute types
   */
-  attrs = self.typedef "attrs" isAttrs;
+  attrs = self.new {
+    name = "attrs";
+    verify = isAttrs;
+  };
 
   /*
     Attribute with undefined element types
   */
-  list = self.typedef "list" isList;
+  list = self.new {
+    name = "list";
+    verify = isList;
+  };
 
   /*
     Function
   */
-  function = self.typedef "function" isFunction;
+  function = self.new {
+    name = "function";
+    verify = isFunction;
+  };
 
   /*
     Path
   */
-  path = self.typedef "path" isPath;
+  path = self.new {
+    name = "path";
+    verify = isPath;
+  };
 
   /*
     Value that may not technically be a path, but has path-like properties
     Either an actual path `./foo`, a derivation, or a string
   */
-  pathLike = self.typedef "pathLike" (v: isPath v || isDerivation v || isString v);
+  pathLike = self.new {
+    name = "pathLike";
+    verify = v: isPath v || isDerivation v || isString v;
+  };
 
   /*
     Derivation
   */
-  derivation = self.typedef "derivation" isDerivation;
+  derivation = self.new {
+    name = "derivation";
+    verify = isDerivation;
+  };
 
   # Polymorphic types
 
   /*
     Type
   */
-  type = self.typedef "type" (
-    v: v ? name && isString v.name && v ? verify && isFunction v.verify
-  );
+  type = self.new {
+    name = "type";
+    verify = v: v ? name && isString v.name && v ? verify && isFunction v.verify;
+  };
 
   optional =
     (builtins.warn or builtins.trace) "Adios type 'optional<t>' has been renamed to 'nullOr<t>'"
@@ -268,15 +364,17 @@ fix (self: {
       name = "nullOr<${t.name}>";
       inherit (t) verify;
     in
-    self.typedef' name (
-      v:
-      if v == null then
-        null
-      else if verify v == null then
-        null
-      else
-        "in ${name}: ${verify v}"
-    );
+    self.new {
+      inherit name;
+      verify =
+        v:
+        if v == null then
+          true
+        else if verify v == true then
+          true
+        else
+          "in ${name}: ${verify v}";
+    };
 
   /*
     listOf<t>
@@ -288,16 +386,18 @@ fix (self: {
       name = "listOf<${t.name}>";
       inherit (t) verify;
     in
-    self.typedef' name (
-      list:
-      if !isList list then
-        typeError name list
-      else if all (elem: verify elem == null) list then
-        null
-      else
-        # If an error was found, run the checks again to find the first error to return.
-        "in ${name} element: ${self.findFirstError verify list}"
-    );
+    self.new {
+      inherit name;
+      verify =
+        list:
+        if !isList list then
+          typeError name list
+        else if all (elem: verify elem == true) list then
+          true
+        else
+          # If an error was found, run the checks again to find the first error to return.
+          "in ${name} element: ${self.findFirstError verify list}";
+    };
 
   /*
     attrsOf<t>
@@ -309,22 +409,23 @@ fix (self: {
       name = "attrsOf<${t.name}>";
       inherit (t) verify;
     in
-    self.typedef' name (
-      attrs:
-      if !isAttrs attrs then
-        typeError name attrs
-      else
-      if all (value: verify value == null) (attrValues attrs) then
-        null
-      else
-        self.findFirstError (
-          key:
-          if verify attrs.${key} == null then
-            null
-          else
-            "in ${name} value: in attribute '${key}': ${verify attrs.${key}}"
-        ) (attrNames attrs)
-    );
+    self.new {
+      inherit name;
+      verify =
+        attrs:
+        if !isAttrs attrs then
+          typeError name attrs
+        else if all (value: verify value == true) (attrValues attrs) then
+          true
+        else
+          self.findFirstError (
+            key:
+            if verify attrs.${key} == true then
+              true
+            else
+              "in ${name} value: in attribute '${key}': ${verify attrs.${key}}"
+          ) (attrNames attrs);
+    };
 
   /*
     union<types...>
@@ -337,7 +438,10 @@ fix (self: {
       name = "union<${concatStringsSep "," (map (t: t.name) types)}>";
       funcs = map (t: t.verify) types;
     in
-    self.typedef name (v: any (func: func v == null) funcs);
+    self.new {
+      inherit name;
+      verify = v: any (func: func v == true) funcs;
+    };
 
   /*
     intersection<types...>
@@ -350,7 +454,10 @@ fix (self: {
       name = "intersection<${concatStringsSep "," (map (t: t.name) types)}>";
       funcs = map (t: t.verify) types;
     in
-    self.typedef name (v: all (func: func v == null) funcs);
+    self.new {
+      inherit name;
+      verify = v: all (func: func v == true) funcs;
+    };
 
   /*
     rename<name, type>
@@ -368,7 +475,12 @@ fix (self: {
     );
     ```
   */
-  rename = name: type: self.typedef' name type.verify;
+  rename =
+    name: type:
+    self.new {
+      inherit name;
+      inherit (type) verify;
+    };
 
   /*
     struct<name, members...>
@@ -464,14 +576,14 @@ fix (self: {
             in
             if members.${attr}.__optional or (!total) then
               v:
-              if !v ? ${attr} || verify v.${attr} == null then
-                null
+              if !v ? ${attr} || verify v.${attr} == true then
+                true
               else
                 "in member '${attr}': ${verify v.${attr}}"
             else
               v:
               if v ? ${attr} then
-                if verify v.${attr} == null then null else "in member '${attr}': ${verify v.${attr}}"
+                if verify v.${attr} == true then true else "in member '${attr}': ${verify v.${attr}}"
               else
                 "missing member '${attr}'"
           ) names;
@@ -481,30 +593,32 @@ fix (self: {
             ++ optionalElem (!unknown) (
               v:
               if removeAttrs v names == { } then
-                null
+                true
               else
                 "keys [${joinKeys (attrNames (removeAttrs v names))}] are unrecognized, expected keys are [${joinKeys names}]"
             )
             ++ optionalElem (verify != null) verify;
         in
-        self.typedef' name (
-          v:
-          if !isAttrs v then
-            "in struct '${name}': ${typeError name v}"
-          else if all (func: func v == null) allFuncs then
-            null
-          else
-            # If an error was found, run the checks again to find the first error to return.
-            foldl' (
-              acc: func:
-              if acc != null then
-                acc
-              else if func v != null then
-                "in struct '${name}': ${func v}"
-              else
-                acc
-            ) null allFuncs
-        )
+        self.new {
+          inherit name;
+          verify =
+            v:
+            if !isAttrs v then
+              "in struct '${name}': ${typeError name v}"
+            else if all (func: func v == true) allFuncs then
+              true
+            else
+              # If an error was found, run the checks again to find the first error to return.
+              foldl' (
+                acc: func:
+                if acc != true then
+                  acc
+                else if func v != true then
+                  "in struct '${name}': ${func v}"
+                else
+                  acc
+              ) true allFuncs;
+        }
         // {
           override = mkStruct';
         };
@@ -525,7 +639,11 @@ fix (self: {
       name = "optionalAttr<${t.name}>";
       inherit (t) verify;
     in
-    self.typedef' name (v: if verify v == null then null else "in ${name}: ${verify v}") // makeOptional;
+    self.new {
+      inherit name;
+      verify = v: if verify v == true then true else "in ${name}: ${verify v}";
+    }
+    // makeOptional;
 
   /*
     enum<name, elems...>
@@ -536,9 +654,10 @@ fix (self: {
     # List of allowable enum members
     elems:
     assert isList elems;
-    self.typedef' name (
-      v: if elem v elems then null else "'${toPretty v}' is not a member of enum '${name}'"
-    );
+    self.new {
+      inherit name;
+      verify = v: if elem v elems then true else "'${toPretty v}' is not a member of enum '${name}'";
+    };
 
   /*
     tuple<elems...>
@@ -554,23 +673,25 @@ fix (self: {
       verifyValue =
         v: i:
         if i == len then
-          null
-        else if (elemAt funcs i) (elemAt v i) != null then
+          true
+        else if (elemAt funcs i) (elemAt v i) != true then
           ("in element ${toString i}: ${(elemAt funcs i) (elemAt v i)}")
         else
           verifyValue v (i + 1);
     in
-    self.typedef' name (
-      v:
-      if !isList v then
-        "in ${name}: ${typeError name v}"
-      else if length v != len then
-        "in ${name}: Expected tuple to have length ${toString len} but value '${toPretty v}' has length ${toString (length v)}"
-      else if verifyValue v 0 == null then
-        null
-      else
-        "in ${name}: ${verifyValue v 0}"
-    );
+    self.new {
+      inherit name;
+      verify =
+        v:
+        if !isList v then
+          "in ${name}: ${typeError name v}"
+        else if length v != len then
+          "in ${name}: Expected tuple to have length ${toString len} but value '${toPretty v}' has length ${toString (length v)}"
+        else if verifyValue v 0 == true then
+          true
+        else
+          "in ${name}: ${verifyValue v 0}";
+    };
 
   /*
     Create a wrapped type checked function.
@@ -587,7 +708,7 @@ fix (self: {
           type = elemAt args idx;
         in
         value:
-        if type.verify value != null then
+        if type.verify value != true then
           throw "${errorPrefix}: while checking argument ${toString idx}: ${type.verify value}"
         else
           fun value
@@ -598,7 +719,7 @@ fix (self: {
           value = f arg;
           err = T.verify value;
         in
-        if err != null then throw "${errorPrefix}: while checking return type: ${err}" else value
+        if err != true then throw "${errorPrefix}: while checking return type: ${err}" else value
       )
       (genList (i: i) (length args));
 })

@@ -1,5 +1,51 @@
 Any new features or breaking changes will be listed here.
 
+# New typedef function
+
+`typedef` and `typedef'` have been deprecated in favor of `types.new`, which uses structured attributes and combines
+the usecases of both functions. This is for UX purposes and clarity, as an apostrophe suffix is difficult to notice.
+
+`types.new` takes a `name` string and a `verify` function, which returns `union<true,false,string>`. True represents a
+passing typecheck, while false represents a failing typecheck, and a string represents a failing typecheck with a custom
+error message. This replaces the usecases of both `typedef` and `typedef'`.
+
+`types.typedef` usage should be replaced as such:
+
+```nix
+# old
+types.typedef "two" (v: v == 2)
+# new
+types.new {
+  name = "two";
+  verify = v: v == 2;
+}
+```
+While `types.typedef'` usage should be replaced as such:
+```nix
+# old
+types.typedef' "two" (v: if v == 2 then null else "v was not equal to 2")
+# new
+types.new {
+  name = "two";
+  verify = v: if v == 2 then true else "v was not equal to 2";
+}
+```
+
+Along with this, the exposed `verify` function of a type has had its signature changed from `union<null,string>` to
+`union<true,string>`. Note that unlike the `verify` function passed to `types.new`, this will never return false, so it
+doesn't have to be handled.
+
+Polymorphic types should be modified as such:
+```nix
+# old
+t: types.typedef' "polymorphic<${t.name}>" (if t.verify v == null then null else "some error message")
+# new
+t: types.new {
+  name = "polymorphic";
+  verify = v: if t.verify v == true then true else "some error message";
+}
+```
+
 # Improved error formatting and messages
 
 Adios now uses Nix logic for handling error context, instead of passing around context manually with strings. This
