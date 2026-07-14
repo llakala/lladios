@@ -36,24 +36,22 @@ let
     in
     if loc == null then x: x else warn "${message} in ${loc.file}:${toString loc.line}";
 
-  checks = {
-    option = types.modules.option.check;
-    input = types.modules.input.check;
-    mutation = types.modules.mutation.check;
-    lib = types.modules.lib.check;
-    typedef = types.modules.typedef.check;
-    impl = types.modules.impl.check;
+  checkOption = types.modules.option.check;
+  checkInput = types.modules.input.check;
+  checkMutation = types.modules.mutation.check;
+  checkLib = types.modules.lib.check;
+  checkTypedef = types.modules.typedef.check;
+  checkImpl = types.modules.impl.check;
 
-    # Lazy type check an attrset
-    attrsOfType =
-      errorPrefix: check: attrs:
-      if isAttrs attrs then
-        mapAttrs (
-          name: value: addErrorContext errorPrefix (addErrorContext "in attribute '${name}'" (check value))
-        ) attrs
-      else
-        addErrorContext errorPrefix (throw (types.typeError "attrs" attrs));
-  };
+  # Lazy type check an attrset
+  checkAttrsOfType =
+    errorPrefix: check: attrs:
+    if isAttrs attrs then
+      mapAttrs (
+        name: value: addErrorContext errorPrefix (addErrorContext "in attribute '${name}'" (check value))
+      ) attrs
+    else
+      addErrorContext errorPrefix (throw (types.typeError "attrs" attrs));
 
   # Merge lhs & rhs recursing into suboptions
   mergeOptionsUnchecked =
@@ -256,11 +254,11 @@ let
       result = callFunction self.impl self.args;
       self = {
         path = if path == "" then "/" else path;
-        options = checks.attrsOfType "${errorPrefix}: in attribute 'options'" checks.option (
+        options = checkAttrsOfType "${errorPrefix}: in attribute 'options'" checkOption (
           def.options or { }
         );
-        inputs = checks.attrsOfType "${errorPrefix}: in attribute 'inputs'" checks.input (def.inputs or { });
-        mutations = checks.attrsOfType "${errorPrefix}: in attribute 'mutations'" checks.mutation (
+        inputs = checkAttrsOfType "${errorPrefix}: in attribute 'inputs'" checkInput (def.inputs or { });
+        mutations = checkAttrsOfType "${errorPrefix}: in attribute 'mutations'" checkMutation (
           def.mutations or { }
         );
         modules = mapAttrs (name: recurse self "${path}/${name}") (def.modules or { });
@@ -290,13 +288,13 @@ let
 
         # We can avoid optionalAttrs merging with null attribute names
         ${if def ? lib then "lib" else null} = addErrorContext "${errorPrefix}: in attribute 'lib'" (
-          checks.lib def.lib
+          checkLib def.lib
         );
         ${if def ? types then "types" else null} =
-          checks.attrsOfType "${errorPrefix}: in attribute 'types'" checks.typedef
+          checkAttrsOfType "${errorPrefix}: in attribute 'types'" checkTypedef
             def.types;
         ${if def ? impl then "impl" else null} = addErrorContext "${errorPrefix}: in attribute 'impl'" (
-          checks.impl def.impl
+          checkImpl def.impl
         );
 
         ${if def ? impl then "__functor" else null} =
