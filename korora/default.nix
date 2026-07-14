@@ -435,11 +435,10 @@ fix (self: {
     types:
     assert isList types;
     let
-      name = "union<${concatStringsSep "," (map (t: t.name) types)}>";
       funcs = map (t: t.verify) types;
     in
     self.new {
-      inherit name;
+      name = "union<${concatStringsSep "," (map (t: t.name) types)}>";
       verify = v: any (func: func v == true) funcs;
     };
 
@@ -451,11 +450,10 @@ fix (self: {
     types:
     assert isList types;
     let
-      name = "intersection<${concatStringsSep "," (map (t: t.name) types)}>";
       funcs = map (t: t.verify) types;
     in
     self.new {
-      inherit name;
+      name = "intersection<${concatStringsSep "," (map (t: t.name) types)}>";
       verify = v: all (func: func v == true) funcs;
     };
 
