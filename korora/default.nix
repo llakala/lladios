@@ -696,19 +696,21 @@ fix (self: {
     Create a wrapped type checked function.
   */
   defun =
-    name: args: T: f:
+    name: types:
     let
       errorPrefix = "while calling '${name}'";
+      verifyFuncs = map (type: type.verify) types;
     in
+    T: f:
     foldl'
       (
         fun: idx:
         let
-          type = elemAt args idx;
+          verify = elemAt verifyFuncs idx;
         in
         value:
-        if type.verify value != true then
-          throw "${errorPrefix}: while checking argument ${toString idx}: ${type.verify value}"
+        if verify value != true then
+          throw "${errorPrefix}: while checking argument ${toString idx}: ${verify value}"
         else
           fun value
       )
@@ -720,5 +722,5 @@ fix (self: {
         in
         if err != true then throw "${errorPrefix}: while checking return type: ${err}" else value
       )
-      (genList (i: i) (length args));
+      (genList (i: i) (length types));
 })

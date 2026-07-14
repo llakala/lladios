@@ -379,7 +379,7 @@ Create a wrapped type checked function.
 : Function argument
 
 
-`args`
+`types`
 
 : Function argument
 
