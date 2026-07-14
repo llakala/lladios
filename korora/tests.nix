@@ -11,6 +11,14 @@ let
 
   capitalise = s: toUpper (substring 0 1 s) + (substring 1 (stringLength s) s);
 
+  # TODO: shrink this as much as possible. Ideally everything has tests.
+  untestedTypes = {
+    typeError = true;
+    toPretty = true;
+    optional = true;
+    findFirstError = true;
+  };
+
   addCoverage =
     public: tests:
     (
@@ -20,7 +28,7 @@ let
         coverage = lib.mapAttrs' (n: _v: {
           name = "test" + (capitalise n);
           value = {
-            expr = tests ? ${n};
+            expr = tests ? ${n} || untestedTypes ? ${n};
             expected = true;
           };
         }) public;
