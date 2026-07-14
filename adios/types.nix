@@ -7,7 +7,6 @@ let
     attrsOf
     function
     listOf
-    never
     optionalAttr
     rename
     string
@@ -15,8 +14,6 @@ let
     type
     union
     ;
-
-  neverAttr = optionalAttr never;
 
   typesT = attrsOf modules.typedef;
 
@@ -33,12 +30,15 @@ let
 
     impl = function;
 
-    nonMutableOption =
+    normalOption =
       (struct "option" {
         inherit type;
         description = optionalAttr string;
         default = optionalAttr any;
         defaultFunc = optionalAttr function;
+        mutatorType = optionalAttr type;
+        mergeFunc = optionalAttr function;
+        mutators = optionalAttr (listOf string);
         example = optionalAttr any;
       }).override
         {
@@ -46,59 +46,45 @@ let
             option:
             if option ? default && option ? defaultFunc then
               "'default' & 'defaultFunc' are mutually exclusive"
+            else if option ? mutatorType != option ? mergeFunc then
+              "if either 'mutatorType' or 'mergeFunc' is specified, the other must be as well"
+            else if option ? mutators && !(option ? mergeFunc && option ? mutatorType) then
+              "if 'mutators' are specified, 'mergeFunc' and 'mutatorType' must be as well"
             else
               true;
         };
 
-    mutableOption = struct "mutableOption" {
-      inherit type;
-      mutators = optionalAttr (listOf string);
-      mutatorType = type;
-      mergeFunc = function;
-      description = optionalAttr string;
-      example = optionalAttr any;
-      default = optionalAttr any;
-      defaultFunc = optionalAttr function;
-    };
-
     subOptions = struct "subOptions" {
       options = attrsOf modules.option;
       description = optionalAttr string;
-      # Make fields used for normal options non-permitted
-      type = neverAttr;
-      default = neverAttr;
-      defaultFunc = neverAttr;
+      example = optionalAttr any;
     };
 
     option = union [
-      modules.nonMutableOption
-      modules.mutableOption
+      modules.normalOption
       modules.subOptions
     ];
 
     input =
       (struct "input" {
         # Note: The lack of a type for an input means no type checking done.
-        type = optionalAttr type;
-        path = optionalAttr (
-          korora.new {
-            name = "pathstring";
-            verify = isString;
-          }
-        );
-        from = optionalAttr (
-          korora.new {
-            name = "from";
-            verify = isFunction;
-          }
-        );
+        type = type;
+        path = korora.new {
+          name = "pathstring";
+          verify = isString;
+        };
+        from = korora.new {
+          name = "from";
+          verify = isFunction;
+        };
       }).override
         {
+          total = false; # all attributes are optional, the verify function handles one being set
           verify =
             attrs:
             if attrs ? path && attrs ? from then
               "'path' and 'from' are disjoint for a given input"
-            else if !attrs ? path && !attrs ? from then
+            else if !attrs ? from && !attrs ? path then
               "either 'path' or 'from' must be specified for a given input"
             else
               true;
