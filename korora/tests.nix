@@ -1,7 +1,7 @@
 # run `nix-unit korora/tests.nix` to see if the tests pass
 {
-  pkgs ? import <nixpkgs> { },
-  lib ? pkgs.lib,
+  sources ? import ../npins,
+  lib ? import (sources.nixpkgs + "/lib"),
 }:
 
 let
