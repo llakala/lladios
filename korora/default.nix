@@ -580,10 +580,12 @@ fix (self: {
                 "in member '${attr}': ${verify v.${attr}}"
             else
               v:
-              if v ? ${attr} then
-                if verify v.${attr} == true then true else "in member '${attr}': ${verify v.${attr}}"
-              else
+              if !v ? ${attr} then
                 "missing member '${attr}'"
+              else if verify v.${attr} == true then
+                true
+              else
+                "in member '${attr}': ${verify v.${attr}}"
           ) names;
 
           allFuncs =
