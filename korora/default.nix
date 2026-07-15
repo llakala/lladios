@@ -670,14 +670,14 @@ fix (self: {
       name = "tuple<${concatStringsSep "," (map (t: t.name) members)}>";
       len = length members;
       funcs = map (t: t.verify) members;
-      verifyValue =
+      recurse =
         v: i:
         if i == len then
           true
         else if (elemAt funcs i) (elemAt v i) != true then
           ("in element ${toString i}: ${(elemAt funcs i) (elemAt v i)}")
         else
-          verifyValue v (i + 1);
+          recurse v (i + 1);
     in
     self.new {
       inherit name;
@@ -687,10 +687,10 @@ fix (self: {
           "in ${name}: ${typeError name v}"
         else if length v != len then
           "in ${name}: Expected tuple to have length ${toString len} but value '${toPretty v}' has length ${toString (length v)}"
-        else if verifyValue v 0 == true then
+        else if recurse v 0 == true then
           true
         else
-          "in ${name}: ${verifyValue v 0}";
+          "in ${name}: ${recurse v 0}";
     };
 
   /*
