@@ -39,8 +39,8 @@ where each set injects into the previous one from left to right.
 
 ## How does it work?
 
-`inject` can be thought of as "recursive `//`". If you're not familiar with the intricacies of `//`, it works like this
-on attribute sets:
+`inject` can be thought of as "recursive `//`" for module definitions. If you're not familiar with the
+intricacies of `//`, it works like this on attribute sets:
 
 ```nix
 { a.b = 1; } // { a.c = 2; }
@@ -67,7 +67,7 @@ adios.lib.inject [
 { unchanged-value = true; nested.overriden-value = true; }
 ```
 
-## Examples
+## Simple example
 
 Here's an example of injecting into a basic Adios module:
 
@@ -114,8 +114,11 @@ in
 ''
 ```
 
-Injections also support an advanced form, where they take the old version of the module as a parameter. With the
-previous module, that might look like:
+## Advanced example
+
+Injections also support an advanced form, where they take the old version of the module as a parameter. With the module
+from the simple example, that might look like:
+
 ```nix
 let
   module = {
@@ -136,15 +139,15 @@ let
     '';
   };
 
-  injections = old: {
+  newModule = old: {
     # default of 10 multiplied by 2
     options.foo.default = old.options.foo.default * 2;
   };
 
-  root = {
+  injection = {
     modules = adios.lib.inject [
       { age-module = module; }
-      { age-module = injections; }
+      { age-module = injection; }
     ];
   };
   tree = adios root {};
@@ -154,3 +157,31 @@ in
   Someday, you will be 21 years old.
 ''
 ```
+
+There are some quirks of this that should be noted.
+
+1. It only works if each element is a _set_ of modules, not a module itself.
+```nix
+# this doesn't work with the advanced form
+adios.lib.inject [
+  module
+  injection
+]
+
+# this works
+adios.lib.inject [
+  { module = module; }
+  { module = injection; }
+]
+```
+
+2. It works recursively.
+```nix
+# this works
+adios.lib.inject [
+  { foo.modules.bar = module; }
+  { foo.modules.bar = injection; }
+]
+```
+
+3. As this behavior is specific to Adios module sets, it's recommended to use `lib.recursiveUpdate` for generic attrset updates.
