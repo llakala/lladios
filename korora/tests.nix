@@ -16,7 +16,8 @@ let
     typeError = true;
     toPretty = true;
     optional = true;
-    findFirstError = true;
+    findFirstValue = true;
+    findFirstFunction = true;
     typedef = true;
     typedef' = true;
     new = true;
@@ -44,176 +45,176 @@ lib.fix (
   addCoverage types {
     string = {
       testInvalid = {
-        expr = types.string.verify 1;
+        expr = types.string.inspect 1;
         expected = "Expected type 'string' but value '1' failed the type check";
       };
 
       testValid = {
-        expr = types.string.verify "Hello";
-        expected = true;
+        expr = types.string.inspect "Hello";
+        expected = null;
       };
     };
 
     function = {
       testInvalid = {
-        expr = types.function.verify 1;
+        expr = types.function.inspect 1;
         expected = "Expected type 'function' but value '1' failed the type check";
       };
 
       testValid = {
-        expr = types.function.verify (_: null);
-        expected = true;
+        expr = types.function.inspect (_: null);
+        expected = null;
       };
     };
 
     path = {
       testInvalid = {
-        expr = types.path.verify 1;
+        expr = types.path.inspect 1;
         expected = "Expected type 'path' but value '1' failed the type check";
       };
 
       testValid = {
-        expr = types.path.verify ./.;
-        expected = true;
+        expr = types.path.inspect ./.;
+        expected = null;
       };
     };
 
     pathLike = {
       testInvalid = {
-        expr = types.pathLike.verify 1;
+        expr = types.pathLike.inspect 1;
         expected = "Expected type 'pathLike' but value '1' failed the type check";
       };
 
       testPath = {
-        expr = types.pathLike.verify ./.;
-        expected = true;
+        expr = types.pathLike.inspect ./.;
+        expected = null;
       };
       # I'd like to add testDerivation, but the tests dont like needing
       # <nixpkgs>
       testString = {
-        expr = types.pathLike.verify "example string";
-        expected = true;
+        expr = types.pathLike.inspect "example string";
+        expected = null;
       };
     };
 
     derivation = {
       testInvalid = {
-        expr = types.derivation.verify { };
+        expr = types.derivation.inspect { };
         expected = "Expected type 'derivation' but value '{ }' failed the type check";
       };
 
       testValid = {
-        expr = types.derivation.verify (
+        expr = types.derivation.inspect (
           builtins.derivation {
             name = "test";
             builder = ":";
             system = "fake";
           }
         );
-        expected = true;
+        expected = null;
       };
     };
 
     any = {
       testValid = {
-        expr = types.any.verify (throw "NO U"); # Note: Value not checked
-        expected = true;
+        expr = types.any.inspect (throw "NO U"); # Note: Value not checked
+        expected = null;
       };
     };
 
     never = {
       testInvalid = {
-        expr = types.never.verify 1234;
+        expr = types.never.inspect 1234;
         expected = "Expected type 'never' but value '1234' failed the type check";
       };
     };
 
     int = {
       testInvalid = {
-        expr = types.int.verify "x";
+        expr = types.int.inspect "x";
         expected = "Expected type 'int' but value '\"x\"' failed the type check";
       };
 
       testValid = {
-        expr = types.int.verify 1;
-        expected = true;
+        expr = types.int.inspect 1;
+        expected = null;
       };
     };
 
     float = {
       testInvalid = {
-        expr = types.float.verify "x";
+        expr = types.float.inspect "x";
         expected = "Expected type 'float' but value '\"x\"' failed the type check";
       };
 
       testValid = {
-        expr = types.float.verify 1.0;
-        expected = true;
+        expr = types.float.inspect 1.0;
+        expected = null;
       };
     };
 
     number = {
       testInvalid = {
-        expr = types.number.verify "x";
+        expr = types.number.inspect "x";
         expected = "Expected type 'number' but value '\"x\"' failed the type check";
       };
 
       testValidInt = {
-        expr = types.number.verify 1;
-        expected = true;
+        expr = types.number.inspect 1;
+        expected = null;
       };
 
       testValidFloat = {
-        expr = types.number.verify 1.0;
-        expected = true;
+        expr = types.number.inspect 1.0;
+        expected = null;
       };
     };
 
     bool = {
       testInvalid = {
-        expr = types.bool.verify "x";
+        expr = types.bool.inspect "x";
         expected = "Expected type 'bool' but value '\"x\"' failed the type check";
       };
 
       testValid = {
-        expr = types.bool.verify true;
-        expected = true;
+        expr = types.bool.inspect true;
+        expected = null;
       };
     };
 
     null = {
       testInvalid = {
-        expr = types.null.verify "x";
+        expr = types.null.inspect "x";
         expected = "Expected type 'null' but value '\"x\"' failed the type check";
       };
 
       testValid = {
-        expr = types.null.verify null;
-        expected = true;
+        expr = types.null.inspect null;
+        expected = null;
       };
     };
 
     attrs = {
       testInvalid = {
-        expr = types.attrs.verify "x";
+        expr = types.attrs.inspect "x";
         expected = "Expected type 'attrs' but value '\"x\"' failed the type check";
       };
 
       testValid = {
-        expr = types.attrs.verify { };
-        expected = true;
+        expr = types.attrs.inspect { };
+        expected = null;
       };
     };
 
     list = {
       testInvalid = {
-        expr = types.list.verify "x";
+        expr = types.list.inspect "x";
         expected = "Expected type 'list' but value '\"x\"' failed the type check";
       };
 
       testValid = {
-        expr = types.list.verify [ ];
-        expected = true;
+        expr = types.list.inspect [ ];
+        expected = null;
       };
     };
 
@@ -223,17 +224,17 @@ lib.fix (
       in
       {
         testValid = {
-          expr = testListOf.verify [ "hello" ];
-          expected = true;
+          expr = testListOf.inspect [ "hello" ];
+          expected = null;
         };
 
         testInvalidElem = {
-          expr = testListOf.verify [ 1 ];
+          expr = testListOf.inspect [ 1 ];
           expected = "in listOf<string> element: Expected type 'string' but value '1' failed the type check";
         };
 
         testInvalidType = {
-          expr = testListOf.verify 1;
+          expr = testListOf.inspect 1;
           expected = "Expected type 'listOf<string>' but value '1' failed the type check";
         };
       };
@@ -244,21 +245,21 @@ lib.fix (
       in
       {
         testValid = {
-          expr = testAttrsOf.verify {
+          expr = testAttrsOf.inspect {
             x = "hello";
           };
-          expected = true;
+          expected = null;
         };
 
         testInvalidElem = {
-          expr = testAttrsOf.verify {
+          expr = testAttrsOf.inspect {
             x = 1;
           };
           expected = "in attrsOf<string> value: in attribute 'x': Expected type 'string' but value '1' failed the type check";
         };
 
         testInvalidType = {
-          expr = testAttrsOf.verify 1;
+          expr = testAttrsOf.inspect 1;
           expected = "Expected type 'attrsOf<string>' but value '1' failed the type check";
         };
       };
@@ -269,12 +270,12 @@ lib.fix (
       in
       {
         testValid = {
-          expr = testUnion.verify "hello";
-          expected = true;
+          expr = testUnion.inspect "hello";
+          expected = null;
         };
 
         testInvalid = {
-          expr = testUnion.verify 1;
+          expr = testUnion.inspect 1;
           expected = "Expected type 'union<string>' but value '1' failed the type check";
         };
       };
@@ -296,26 +297,26 @@ lib.fix (
       in
       {
         testValid = {
-          expr = testIntersection.verify {
+          expr = testIntersection.inspect {
             a = 1;
           };
-          expected = true;
+          expected = null;
         };
 
         testInvalid = {
-          expr = testIntersection.verify 1;
+          expr = testIntersection.inspect 1;
           expected = "Expected type 'intersection<struct1,struct2>' but value '1' failed the type check";
         };
       };
 
     type = {
       testValid = {
-        expr = types.type.verify types.string;
-        expected = true;
+        expr = types.type.inspect types.string;
+        expected = null;
       };
 
       testInvalid = {
-        expr = types.type.verify { };
+        expr = types.type.inspect { };
         expected = "Expected type 'type' but value '{ }' failed the type check";
       };
     };
@@ -326,17 +327,17 @@ lib.fix (
       in
       {
         testValidString = {
-          expr = testOption.verify "hello";
-          expected = true;
+          expr = testOption.inspect "hello";
+          expected = null;
         };
 
         testNull = {
-          expr = testOption.verify null;
-          expected = true;
+          expr = testOption.inspect null;
+          expected = null;
         };
 
         testInvalid = {
-          expr = testOption.verify 3;
+          expr = testOption.inspect 3;
           expected = "in nullOr<string>: Expected type 'string' but value '3' failed the type check";
         };
       };
@@ -353,7 +354,8 @@ lib.fix (
             y = types.int;
           }).override
             {
-              verify = v: if v.x + v.y == 2 then "VERBOTEN" else true;
+              verify = v: v.x + v.y != 2;
+              explain = v: "VERBOTEN";
             };
 
         testStructNonTotal = testStruct.override { total = false; };
@@ -361,24 +363,24 @@ lib.fix (
       in
       {
         testValid = {
-          expr = testStruct.verify {
+          expr = testStruct.inspect {
             foo = "bar";
           };
-          expected = true;
+          expected = null;
         };
 
         testMissingAttr = {
-          expr = testStruct.verify { };
+          expr = testStruct.inspect { };
           expected = "in struct 'testStruct': missing member 'foo'";
         };
 
         testNonTotal = {
-          expr = testStructNonTotal.verify { };
-          expected = true;
+          expr = testStructNonTotal.inspect { };
+          expected = null;
         };
 
         testExtraInvariantCheck = {
-          expr = testStruct2.verify {
+          expr = testStruct2.inspect {
             x = 1;
             y = 1;
           };
@@ -386,7 +388,7 @@ lib.fix (
         };
 
         testUnknownAttrNotAllowed = {
-          expr = testStruct.verify {
+          expr = testStruct.inspect {
             foo = "bar";
             bar = "foo";
           };
@@ -394,20 +396,20 @@ lib.fix (
         };
 
         testUnknownAttr = {
-          expr = testStructWithUnknown.verify {
+          expr = testStructWithUnknown.inspect {
             foo = "bar";
             bar = "foo";
           };
-          expected = true;
+          expected = null;
         };
 
         testInvalidType = {
-          expr = testStruct.verify "bar";
+          expr = testStruct.inspect "bar";
           expected = "in struct 'testStruct': Expected type 'testStruct' but value '\"bar\"' failed the type check";
         };
 
         testInvalidMember = {
-          expr = testStruct.verify {
+          expr = testStruct.inspect {
             foo = 1;
           };
           expected = "in struct 'testStruct': in member 'foo': Expected type 'string' but value '1' failed the type check";
@@ -424,22 +426,22 @@ lib.fix (
       in
       {
         testWithOptional = {
-          expr = testStruct.verify {
+          expr = testStruct.inspect {
             foo = "hello";
             optionalFoo = "goodbye";
           };
-          expected = true;
+          expected = null;
         };
 
         testWithoutOptional = {
-          expr = testStruct.verify {
+          expr = testStruct.inspect {
             foo = "hello";
           };
-          expected = true;
+          expected = null;
         };
 
         testWithInvalidOptional = {
-          expr = testStruct.verify {
+          expr = testStruct.inspect {
             foo = "hello";
             optionalFoo = 1234;
           };
@@ -457,12 +459,12 @@ lib.fix (
       in
       {
         testHasElem = {
-          expr = testEnum.verify "B";
-          expected = true;
+          expr = testEnum.inspect "B";
+          expected = null;
         };
 
         testNotHasElem = {
-          expr = testEnum.verify "nope";
+          expr = testEnum.inspect "nope";
           expected = "'\"nope\"' is not a member of enum 'testEnum'";
         };
       };
@@ -475,7 +477,7 @@ lib.fix (
           in
           {
             inherit (t) name;
-            isFunction = builtins.isFunction t.verify;
+            isFunction = builtins.isFunction t.inspect;
           };
         expected = {
           name = "florp";
@@ -493,17 +495,17 @@ lib.fix (
       in
       {
         testNotList = {
-          expr = testTuple.verify "xyz";
+          expr = testTuple.inspect "xyz";
           expected = "in tuple<string,int>: Expected type 'tuple<string,int>' but value '\"xyz\"' failed the type check";
         };
 
         testInvalidLength = {
-          expr = testTuple.verify [ ];
+          expr = testTuple.inspect [ ];
           expected = "in tuple<string,int>: Expected tuple to have length 2 but value '[ ]' has length 0";
         };
 
         testInvalidType = {
-          expr = testTuple.verify [
+          expr = testTuple.inspect [
             123
             "xyz"
           ];
@@ -511,7 +513,7 @@ lib.fix (
         };
 
         testInvalidTypeTail = {
-          expr = testTuple.verify [
+          expr = testTuple.inspect [
             "xyz"
             "123"
           ];
@@ -519,11 +521,11 @@ lib.fix (
         };
 
         testValid = {
-          expr = testTuple.verify [
+          expr = testTuple.inspect [
             "xyz"
             123
           ];
-          expected = true;
+          expected = null;
         };
       };
 
@@ -582,12 +584,12 @@ lib.fix (
         in
         {
           testOK = {
-            expr = recursive.verify {
+            expr = recursive.inspect {
               children = {
                 x = { };
               };
             };
-            expected = true;
+            expected = null;
           };
 
           testNotOK = {
@@ -615,7 +617,7 @@ lib.fix (
         in
         {
           testOK = {
-            expr = type.verify {
+            expr = type.inspect {
               foo = "bar";
               baz = {
                 foo = "bar";
@@ -624,7 +626,7 @@ lib.fix (
                 };
               };
             };
-            expected = true;
+            expected = null;
           };
 
           testNotOK = {

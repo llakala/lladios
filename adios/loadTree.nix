@@ -51,7 +51,7 @@ let
         name: value: addErrorContext errorPrefix (addErrorContext "in attribute '${name}'" (check value))
       ) attrs
     else
-      addErrorContext errorPrefix (throw (types.typeError "attrs" attrs));
+      addErrorContext errorPrefix (throw (types.attrs.explain attrs));
 
   # Merge lhs & rhs recursing into suboptions
   mergeOptionsUnchecked =

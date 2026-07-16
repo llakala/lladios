@@ -3,48 +3,62 @@ Any new features or breaking changes will be listed here.
 # New typedef function
 
 `typedef` and `typedef'` have been deprecated in favor of `types.new`, which uses structured attributes and combines
-the usecases of both functions. This is for UX purposes and clarity, as an apostrophe suffix is difficult to notice.
+the usecases of both functions. This is for UX purposes, performance, and clarity.
 
-`types.new` takes a `name` string and a `verify` function, which returns `union<true,false,string>`. True represents a
-passing typecheck, while false represents a failing typecheck, and a string represents a failing typecheck with a custom
-error message. This replaces the usecases of both `typedef` and `typedef'`.
+`types.new` takes:
+- a `name` string for the type
+- a `verify` function which returns `true/false`
+- an `explain` function (optional) which returns a string
+
+The verify function controls whether the typecheck passes or not. If it fails, Adios will then call the `explain`
+function (or fall back to the default one), which returns an error message to print. This replaces the usecases of both
+`typedef` and `typedef'`.
 
 `types.typedef` usage should be replaced as such:
 
 ```nix
-# old
+# before
 types.typedef "two" (v: v == 2)
-# new
+# after
 types.new {
   name = "two";
   verify = v: v == 2;
 }
 ```
+
 While `types.typedef'` usage should be replaced as such:
+
 ```nix
-# old
+# before
 types.typedef' "two" (v: if v == 2 then null else "v was not equal to 2")
-# new
+# after
 types.new {
   name = "two";
-  verify = v: if v == 2 then true else "v was not equal to 2";
+  verify = v: v == 2;
+  # only called if `verify v == false`, so we can return the error directly
+  explain = v: "v was not equal to 2";
 }
 ```
 
-Along with this, the exposed `verify` function of a type has had its signature changed from `union<null,string>` to
-`union<true,string>`. Note that unlike the `verify` function passed to `types.new`, this will never return false, so it
-doesn't have to be handled.
+These changes also apply to `types.struct`. Any custom verification functions that return a string should be modified as
+such:
 
-Polymorphic types should be modified as such:
 ```nix
-# old
-t: types.typedef' "polymorphic<${t.name}>" (if t.verify v == null then null else "some error message")
-# new
-t: types.new {
-  name = "polymorphic";
-  verify = v: if t.verify v == true then true else "some error message";
+# before
+some-struct.override {
+  verify = v: if isInt v then true else "custom error message";
+}
+# after
+some-struct.override {
+  verify = isInt;
+  explain = "custom error message";
 }
 ```
+
+Fnally, the exposed `verify` attribute of a type has been simplified, with its signature changing from
+`union<null,string>` to `bool`. It notably does _not_ call `explain` for performance reasons. To get a custom error
+message without the potentitial to throw, use the new `inspect` function, which has the previous signature of
+`union<null,string>`. However, the internals of types are an implementation detail, and should not be relied on.
 
 # Improved error formatting and messages
 

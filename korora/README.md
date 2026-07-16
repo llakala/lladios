@@ -12,52 +12,100 @@ Named after the [little penguin](https://www.doc.govt.nz/nature/native-animals/b
 
 # Basic usage
 
-- Verification
+## Checking (throws on error)
 
-Basic verification is done with the type function `verify`:
-
-```nix
-{ korora }:
-let
-  t = korora.string;
-  value = 1;
-
-  # Error contains the string "Expected type 'string' but value '1' is of type 'int'"
-  valid = t.verify 1;
-in
-if valid == true then value else throw valid
-```
-
-On success, `verify` returns true.
-On failure, it returns an error message.
-
-- Checking (assertions)
-
-For convenience you can also check a value on-the-fly:
+Korora is primarily intended to wrap around some value with the `check`
+attribute:
 
 ```nix
 { korora }:
 let
   t = korora.string;
   value = 1;
-
-  # Same error as previous example, but `check` throws.
-  result = t.check value;
 in
-result
+t.check value
 ```
 
 On success, `check` returns the value that was passed in.
 On failure, it throws an error message.
 
+## Inspecting (doesn't throw on error)
+
+For cases where it doesn't make sense to throw, the `inspect` attribute can be
+used to determine whether a typecheck passes:
+
+```nix
+{ korora }:
+let
+  t = korora.string;
+  value = 1;
+  error = t.inspect value;
+in
+if error == null then
+  # handle success case
+else
+  # use the string error message however you wish
+```
+
+On success, `inspect` returns null. On failure, it returns an error message as a string.
+
+## Checking status and rationale separately
+
+For performance reasons, both `check` and `inspect` are implemented in terms
+of two separate internal functions - `verify` and `explain`.
+
+```nix
+{ korora }:
+let
+  t = korora.string;
+  value = 1;
+in
+if t.verify value then
+  # handle success case
+else
+  let
+    error = t.explain value;
+  in
+  # use the error message however you wish
+```
+
+`verify` returns true/false, which returns whether the typecheck passed.
+`explain` returns a string representing _why_ the typecheck failed. This
+function should only be called if `verify value == false`.
+
+This allows polymorphic types to be very fast, as they only need to call the
+`verify` functions of subtypes. `explain` is only called recursively if the
+top-level type fails.
+
 # Examples
-For usage example see [tests.nix](./tests.nix).
+For usage examples, see [tests.nix](./tests.nix).
 
 # Reference
+
+## `types.new`
+
+Declare a custom type.
+
+structured function argument
+
+: `name`
+
+  : Name of the type as a string
+
+  `verify`
+
+  : Verification function. Returns true/false representing a success/failure.
+
+  `explain`
+
+  : Function to generate an error message when the verify function fails.
+
 
 ## `types.typedef`
 
 Declare a custom type using a bool function
+
+Deprecated, use `types.new` instead.
 
 `name`
 
@@ -73,6 +121,8 @@ Declare a custom type using a bool function
 
 Declare a custom type using an optional<string> function.
 
+Deprecated, use `types.new` instead.
+
 `name`
 
 : Name of the type as a string
@@ -81,22 +131,6 @@ Declare a custom type using an optional<string> function.
 `verify`
 
 : Verification function returning null on success & a string with error message on error.
-
-
-## `types.new`
-
-Declare a custom type.
-Must either be passed a `validate` or `verify` function.
-
-structured function argument
-
-: `name`
-
-  : Name of the type as a string
-
-  `verify`
-
-  : Verification function. Returns true on success and false on failure. To return a custom error message, return a string.
 
 
 ## `types.typeError`
@@ -113,25 +147,10 @@ custom type.
 
 : value that failed the type check
 
+
 ## `types.toPretty`
 
 Used internally, but also useful in documentation generation.
-
-## `types.findFirstError`
-
-Find the first element in a list that fails the given typecheck function.
-Assumes that:
-- the list has already been checked with `all`, and at least one element failed the typecheck
-
-`verify`
-
-: function to be called on every element of the list
-
-
-`list`
-
-: list where at least one value failed the typecheck
-
 
 ## `types.string`
 
@@ -247,7 +266,7 @@ Because some polymorphic types such as attrsOf inherits names from it's
 sub-types we need to erase the name to not cause infinite recursion.
 
 #### Example:
-``` nix
+```nix
 myType = types.attrsOf (
   types.rename "eitherType" (types.union [
     types.string
@@ -271,32 +290,32 @@ myType = types.attrsOf (
 struct<name, members...>
 
 #### Example
-``` nix
+```nix
 korora.struct "myStruct" {
   foo = types.string;
 }
 ```
 
-#### Features
+### Features
 
-- Totality
+#### Totality
 
 By default, all attribute names must be present in a struct. It is possible to override this by specifying _totality_. Here is how to do this:
-``` nix
+```nix
 (korora.struct "myStruct" {
   foo = types.string;
 }).override { total = false; }
 ```
 
 This means that a `myStruct` struct can have any of the keys omitted. Thus these are valid:
-``` nix
+```nix
 let
   s1 = { };
   s2 = { foo = "bar"; }
 in ...
 ```
 
-- Unknown attribute names
+#### Unknown attribute names
 
 By default, unknown attribute names are not allowed.
 
@@ -308,7 +327,7 @@ It is possible to override this by specifying `unknown` on struct creation:
 ```
 
 This means that
-``` nix
+```nix
 {
   foo = "bar";
   baz = "hello";
@@ -319,10 +338,10 @@ is normally invalid, but works when `unknown` is set to `true`.
 Because Nix lacks primitive operations to iterate over attribute sets dynamically without
 allocation this function allocates one intermediate attribute set per struct verification.
 
-- Custom invariants
+#### Custom invariants
 
 Custom struct verification functions can be added as such:
-``` nix
+```nix
 (types.struct "testStruct2" {
   x = types.int;
   y = types.int;
@@ -338,7 +357,7 @@ Custom struct verification functions can be added as such:
 : Name of struct type as a string
 
 
-`members`
+`types`
 
 : Attribute set of type definitions.
 
@@ -365,9 +384,9 @@ enum<name, elems...>
 
 tuple<elems...>
 
-`members`
+`types`
 
-: List of tuple memeber types
+: List of tuple member types
 
 
 ## `types.defun`
@@ -379,17 +398,12 @@ Create a wrapped type checked function.
 : Function argument
 
 
-`types`
+`paramTypes`
 
 : Function argument
 
 
-`T`
-
-: Function argument
-
-
-`f`
+`resultType`
 
 : Function argument
 
