@@ -12,46 +12,73 @@
 
   # Basic usage
 
-  - Verification
+  ## Checking (throws on error)
 
-  Basic verification is done with the type function `verify`:
-
-  ```nix
-  { korora }:
-  let
-    t = korora.string;
-    value = 1;
-
-    # Error contains the string "Expected type 'string' but value '1' is of type 'int'"
-    valid = t.verify 1;
-  in
-  if valid == true then value else throw valid
-  ```
-
-  On success, `verify` returns true.
-  On failure, it returns an error message.
-
-  - Checking (assertions)
-
-  For convenience you can also check a value on-the-fly:
+  Korora is primarily intended to wrap around some value with the `check`
+  attribute:
 
   ```nix
   { korora }:
   let
     t = korora.string;
     value = 1;
-
-    # Same error as previous example, but `check` throws.
-    result = t.check value;
   in
-  result
+  t.check value
   ```
 
   On success, `check` returns the value that was passed in.
   On failure, it throws an error message.
 
+  ## Inspecting (doesn't throw on error)
+
+  For cases where it doesn't make sense to throw, the `inspect` attribute can be
+  used to determine whether a typecheck passes:
+
+  ```nix
+  { korora }:
+  let
+    t = korora.string;
+    value = 1;
+    error = t.inspect value;
+  in
+  if error == null then
+    # handle success case
+  else
+    # use the string error message however you wish
+  ```
+
+  On success, `inspect` returns null. On failure, it returns an error message as a string.
+
+  ## Checking status and rationale separately
+
+  For performance reasons, both `check` and `inspect` are implemented in terms
+  of two separate internal functions - `verify` and `explain`.
+
+  ```nix
+  { korora }:
+  let
+    t = korora.string;
+    value = 1;
+  in
+  if t.verify value then
+    # handle success case
+  else
+    let
+      error = t.explain value;
+    in
+    # use the error message however you wish
+  ```
+
+  `verify` returns true/false, which returns whether the typecheck passed.
+  `explain` returns a string representing _why_ the typecheck failed. This
+  function should only be called if `verify value == false`.
+
+  This allows polymorphic types to be very fast, as they only need to call the
+  `verify` functions of subtypes. `explain` is only called recursively if the
+  top-level type fails.
+
   # Examples
-  For usage example see [tests.nix](./tests.nix).
+  For usage examples, see [tests.nix](./tests.nix).
 
   # Reference
 */
@@ -64,7 +91,7 @@ let
     concatStringsSep
     elem
     elemAt
-    foldl'
+    genList
     head
     isAttrs
     isBool
@@ -88,7 +115,7 @@ let
 
   toPretty = (import ./lib.nix).toPretty { indent = "    "; };
 
-  typeError =
+  defaultError =
     # Name of the type as a string
     name:
     # value that failed the type check
@@ -102,16 +129,58 @@ let
     in
     x;
 
-  addTypedefWarning = warn ''
+  # Find the first element in a list that fails to verify with the given type.
+  # Assumes that the list has already been checked with `all`, and at least one
+  # element failed the typecheck
+  explainFirstFailingValue =
+    # returns true/false depending on whether typecheck passed
+    verify:
+    # generates a custom error message for when the verify function failed
+    explain:
+    # list where at least one value failed the typecheck
+    list:
+    let
+      recurse =
+        i:
+        let
+          v = elemAt list i;
+        in
+        if verify v then recurse (i + 1) else explain v;
+    in
+    recurse 0;
+
+  # Find the first function that fails on the given value.
+  explainFirstFailingFunction =
+    # each element returns true/false
+    verifiers:
+    # each element generates a custom error message
+    explainers:
+    # the value to be checked
+    v:
+    let
+      recurse = i: if (elemAt verifiers i) v then recurse (i + 1) else (elemAt explainers i) v;
+    in
+    recurse 0;
+
+  typedefWarning = warn ''
     At least one of your Adios modules used `types.typedef` or `types.typedef'`.
     These functions have been deprecated in favor of `types.new`.
 
     See the lladios changelog for rationale and a migration guide:
     https://github.com/llakala/lladios/blob/main/CHANGELOG.md#new-typedef-function
   '' null;
-  addNullWarning = warn ''
+  nullWarning = warn ''
     At least one of your Adios typechecks returned null.
     On success, typechecks should now return a string.
+
+    See the lladios changelog for rationale and a migration guide:
+    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#new-typedef-function
+  '' null;
+  stringVerifyWarning = warn ''
+    At least one of your structs defined a custom `verify` function which
+    returned a string. `verify` functions are now only permitted to return
+    true/false. An `explain` function can be used to provide a custom error
+    message.
 
     See the lladios changelog for rationale and a migration guide:
     https://github.com/llakala/lladios/blob/main/CHANGELOG.md#new-typedef-function
@@ -123,106 +192,79 @@ fix (self: {
   # Utility functions
 
   /*
-    Declare a custom type using a bool function
-  */
-  typedef =
-    # Name of the type as a string
-    name:
-    # Basic verification function returning a bool.
-    verify:
-    seq addTypedefWarning self.new {
-      inherit name verify;
-    };
-
-  /*
-    Declare a custom type using an optional<string> function.
-  */
-  typedef' =
-    # Name of the type as a string
-    name:
-    # Verification function returning null on success & a string with error message on error.
-    verify:
-    seq addTypedefWarning self.new {
-      inherit name verify;
-    };
-
-  /*
     Declare a custom type.
-    Must either be passed a `validate` or `verify` function.
   */
   new =
     {
       # Name of the type as a string
       name,
       # Verification function.
-      # Returns true on success and false on failure.
-      # To return a custom error message, return a string.
+      # Returns true/false representing a success/failure.
       verify,
+      # Function to generate an error message when the verify function fails.
+      explain ? defaultError name,
     }:
     assert isFunction verify;
     {
       inherit name;
       __name = head (split "<" name);
+      inherit verify explain;
+      inspect = v: if verify v then null else explain v;
+      check =
+        v:
+        if verify v == true then
+          v
+        else if verify v == null then
+          seq nullWarning v
+        else
+          throw (explain v);
+    };
+
+  /*
+    Declare a custom type using a bool function
+
+    Deprecated, use `types.new` instead.
+  */
+  typedef =
+    # Name of the type as a string
+    name:
+    # Basic verification function returning a bool.
+    verify:
+    seq typedefWarning self.new {
+      inherit name verify;
+    };
+
+  /*
+    Declare a custom type using an optional<string> function.
+
+    Deprecated, use `types.new` instead.
+  */
+  typedef' =
+    # Name of the type as a string
+    name:
+    # Verification function returning null on success & a string with error message on error.
+    verify:
+    seq typedefWarning self.new {
+      inherit name;
       verify =
         v:
         let
           result = verify v;
         in
-        if result == true then
-          true
-        else if result == false then
-          typeError name v
-        else if isString result then
-          result
-        else
-          assert result == null;
-          seq addNullWarning true;
-      check =
-        v:
-        let
-          result = verify v;
-        in
-        if result == true then
-          v
-        else if result == false then
-          throw (typeError name v)
-        else if isString result then
-          throw result
-        else
-          assert result == null;
-          seq addNullWarning v;
+        if result == true then true else false;
+      explain = verify;
     };
 
   /*
     Basic error function. Used internally, but also useful to throw errors in a
     custom type.
   */
-  typeError = typeError;
+  typeError = defaultError;
 
   /*
     Used internally, but also useful in documentation generation.
   */
   toPretty = (import ./lib.nix).toPretty;
-
-  /*
-    Find the first element in a list that fails the given typecheck function.
-    Assumes that:
-    - the list has already been checked with `all`, and at least one element failed the typecheck
-  */
-  findFirstError =
-    # function to be called on every element of the list
-    verify:
-    # list where at least one value failed the typecheck
-    list:
-    let
-      recurse =
-        i:
-        let
-          v = elemAt list i;
-        in
-        if verify v == true then recurse (i + 1) else verify v;
-    in
-    recurse 0;
 
   # Primitive types
 
@@ -349,9 +391,7 @@ fix (self: {
     verify = v: v ? name && isString v.name && v ? verify && isFunction v.verify;
   };
 
-  optional =
-    (builtins.warn or builtins.trace) "Adios type 'optional<t>' has been renamed to 'nullOr<t>'"
-      self.nullOr;
+  optional = warn "Adios type 'optional<t>' has been renamed to 'nullOr<t>'" self.nullOr;
 
   /*
     nullOr<t>
@@ -365,14 +405,8 @@ fix (self: {
     in
     self.new {
       inherit name;
-      verify =
-        v:
-        if v == null then
-          true
-        else if verify v == true then
-          true
-        else
-          "in ${name}: ${verify v}";
+      verify = v: v == null || verify v;
+      explain = v: "in ${name}: ${t.explain v}";
     };
 
   /*
@@ -387,15 +421,13 @@ fix (self: {
     in
     self.new {
       inherit name;
-      verify =
+      verify = list: isList list && all verify list;
+      explain =
         list:
         if !isList list then
-          typeError name list
-        else if all (elem: verify elem == true) list then
-          true
+          defaultError name list
         else
-          # If an error was found, run the checks again to find the first error to return.
-          "in ${name} element: ${self.findFirstError verify list}";
+          "in ${name} element: ${explainFirstFailingValue verify t.explain list}";
     };
 
   /*
@@ -410,19 +442,14 @@ fix (self: {
     in
     self.new {
       inherit name;
-      verify =
+      verify = attrs: isAttrs attrs && all verify (attrValues attrs);
+      explain =
         attrs:
         if !isAttrs attrs then
-          typeError name attrs
-        else if all (value: verify value == true) (attrValues attrs) then
-          true
+          defaultError name attrs
         else
-          self.findFirstError (
-            key:
-            if verify attrs.${key} == true then
-              true
-            else
-              "in ${name} value: in attribute '${key}': ${verify attrs.${key}}"
+          explainFirstFailingValue (key: verify attrs.${key}) (
+            key: "in ${name} value: in attribute '${key}': ${t.explain attrs.${key}}"
           ) (attrNames attrs);
     };
 
@@ -434,11 +461,12 @@ fix (self: {
     types:
     assert isList types;
     let
-      funcs = map (t: t.verify) types;
+      verifiers = map (t: t.verify) types;
     in
     self.new {
       name = "union<${concatStringsSep "," (map (t: t.name) types)}>";
-      verify = v: any (func: func v == true) funcs;
+      verify = v: any (verifier: verifier v) verifiers;
+      # TODO: custom error message
     };
 
   /*
@@ -449,11 +477,12 @@ fix (self: {
     types:
     assert isList types;
     let
-      funcs = map (t: t.verify) types;
+      verifiers = map (t: t.verify) types;
     in
     self.new {
       name = "intersection<${concatStringsSep "," (map (t: t.name) types)}>";
-      verify = v: all (func: func v == true) funcs;
+      verify = v: all (verifier: verifier v) verifiers;
+      # TODO: custom explain message
     };
 
   /*
@@ -463,7 +492,7 @@ fix (self: {
     sub-types we need to erase the name to not cause infinite recursion.
 
     #### Example:
-    ``` nix
+    ```nix
     myType = types.attrsOf (
       types.rename "eitherType" (types.union [
         types.string
@@ -477,39 +506,39 @@ fix (self: {
     # TODO: properly handle optionalAttr
     self.new {
       inherit name;
-      inherit (type) verify;
+      inherit (type) verify explain;
     };
 
   /*
     struct<name, members...>
 
     #### Example
-    ``` nix
+    ```nix
     korora.struct "myStruct" {
       foo = types.string;
     }
     ```
 
-    #### Features
+    ### Features
 
-    - Totality
+    #### Totality
 
     By default, all attribute names must be present in a struct. It is possible to override this by specifying _totality_. Here is how to do this:
-    ``` nix
+    ```nix
     (korora.struct "myStruct" {
       foo = types.string;
     }).override { total = false; }
     ```
 
     This means that a `myStruct` struct can have any of the keys omitted. Thus these are valid:
-    ``` nix
+    ```nix
     let
       s1 = { };
       s2 = { foo = "bar"; }
     in ...
     ```
 
-    - Unknown attribute names
+    #### Unknown attribute names
 
     By default, unknown attribute names are not allowed.
 
@@ -521,7 +550,7 @@ fix (self: {
     ```
 
     This means that
-    ``` nix
+    ```nix
     {
       foo = "bar";
       baz = "hello";
@@ -532,10 +561,10 @@ fix (self: {
     Because Nix lacks primitive operations to iterate over attribute sets dynamically without
     allocation this function allocates one intermediate attribute set per struct verification.
 
-    - Custom invariants
+    #### Custom invariants
 
     Custom struct verification functions can be added as such:
-    ``` nix
+    ```nix
     (types.struct "testStruct2" {
       x = types.int;
       y = types.int;
@@ -550,74 +579,81 @@ fix (self: {
     # Name of struct type as a string
     name:
     # Attribute set of type definitions.
-    members:
-    assert isAttrs members;
+    types:
+    assert isAttrs types;
     let
-      names = attrNames members;
+      names = attrNames types;
 
       mkStruct' =
         {
           total ? true,
           unknown ? false,
           verify ? null,
+          explain ? null,
         }:
         assert isBool total;
         assert isBool unknown;
         assert verify != null -> isFunction verify;
+        assert explain != null -> isFunction explain;
         let
-          # Turn member verifications into a list of verification functions with their verify functions
-          # already looked up & with error contexts already computed.
-          verifyAttrs = map (
-            attr:
-            let
-              inherit (members.${attr}) verify;
-            in
-            if members.${attr}.__optional or (!total) then
-              v:
-              if !v ? ${attr} || verify v.${attr} == true then
-                true
+          verifiers =
+            map (
+              attr:
+              let
+                inherit (types.${attr}) verify;
+              in
+              if types.${attr}.__optional or (!total) then
+                v: !v ? ${attr} || verify v.${attr}
               else
-                "in member '${attr}': ${verify v.${attr}}"
-            else
+                v: v ? ${attr} && verify v.${attr}
+            ) names
+            ++ optionalElem (!unknown) (v: removeAttrs v names == { })
+            ++ optionalElem (verify != null) (
               v:
-              if !v ? ${attr} then
-                "missing member '${attr}'"
-              else if verify v.${attr} == true then
-                true
-              else
-                "in member '${attr}': ${verify v.${attr}}"
-          ) names;
-
-          allFuncs =
-            verifyAttrs
-            ++ optionalElem (!unknown) (
-              v:
-              if removeAttrs v names == { } then
-                true
-              else
-                "keys [${joinKeys (attrNames (removeAttrs v names))}] are unrecognized, expected keys are [${joinKeys names}]"
-            )
-            ++ optionalElem (verify != null) verify;
+              let
+                result = verify v;
+              in
+              # most users don't interact with types.new at all, so this is the
+              # most likely place to encounter a deprecated verify -> string
+              if isString result then seq stringVerifyWarning false else result
+            );
         in
         self.new {
           inherit name;
-          verify =
+          verify = v: isAttrs v && all (verifier: verifier v == true) verifiers;
+          explain =
             v:
             if !isAttrs v then
-              "in struct '${name}': ${typeError name v}"
-            else if all (func: func v == true) allFuncs then
-              true
+              "in struct '${name}': ${defaultError name v}"
             else
-              # If an error was found, run the checks again to find the first error to return.
-              foldl' (
-                acc: func:
-                if acc != true then
-                  acc
-                else if func v != true then
-                  "in struct '${name}': ${func v}"
-                else
-                  acc
-              ) true allFuncs;
+              let
+                explainers =
+                  map (
+                    attr:
+                    let
+                      type = types.${attr};
+                    in
+                    if type.__optional or (!total) then
+                      v: "in struct '${name}': in member '${attr}': ${type.explain v.${attr}}"
+                    else
+                      v:
+                      if !v ? ${attr} then
+                        "in struct '${name}': missing member '${attr}'"
+                      else
+                        "in struct '${name}': in member '${attr}': ${type.explain v.${attr}}"
+                  ) names
+                  ++ optionalElem (!unknown) (
+                    v:
+                    "in struct '${name}': keys [${joinKeys (attrNames (removeAttrs v names))}] are unrecognized, expected keys are [${joinKeys names}]"
+                  )
+                  ++ optionalElem (verify != null) (
+                    if explain != null then
+                      v: "in struct '${name}': ${explain v}"
+                    else
+                      v: "in struct '${name}': custom verification function failed on value '${toPretty v}'"
+                  );
+              in
+              explainFirstFailingFunction verifiers explainers v;
         }
         // {
           override = mkStruct';
@@ -637,11 +673,11 @@ fix (self: {
     t:
     let
       name = "optionalAttr<${t.name}>";
-      inherit (t) verify;
     in
     self.new {
       inherit name;
-      verify = v: if verify v == true then true else "in ${name}: ${verify v}";
+      verify = t.verify;
+      explain = v: "in ${name}: ${t.explain v}";
     }
     // makeOptional;
 
@@ -656,41 +692,38 @@ fix (self: {
     assert isList elems;
     self.new {
       inherit name;
-      verify = v: if elem v elems then true else "'${toPretty v}' is not a member of enum '${name}'";
+      verify = v: elem v elems;
+      explain = v: "'${toPretty v}' is not a member of enum '${name}'";
     };
 
   /*
     tuple<elems...>
   */
   tuple =
-    # List of tuple memeber types
-    members:
-    assert isList members;
+    # List of tuple member types
+    types:
+    assert isList types;
     let
-      name = "tuple<${concatStringsSep "," (map (t: t.name) members)}>";
-      len = length members;
-      funcs = map (t: t.verify) members;
-      recurse =
-        v: i:
-        if i == len then
-          true
-        else if (elemAt funcs i) (elemAt v i) != true then
-          ("in element ${toString i}: ${(elemAt funcs i) (elemAt v i)}")
-        else
-          recurse v (i + 1);
+      name = "tuple<${concatStringsSep "," (map (t: t.name) types)}>";
+      len = length types;
+      verifiers = genList (i: v: (elemAt types i).verify (elemAt v i)) len;
     in
     self.new {
       inherit name;
-      verify =
-        v:
-        if !isList v then
-          "in ${name}: ${typeError name v}"
-        else if length v != len then
-          "in ${name}: Expected tuple to have length ${toString len} but value '${toPretty v}' has length ${toString (length v)}"
-        else if recurse v 0 == true then
-          true
+      verify = v: isList v && length v == len && all (verifier: verifier v) verifiers;
+      explain =
+        tuple:
+        if !isList tuple then
+          "in ${name}: ${defaultError name tuple}"
+        else if length tuple != len then
+          "in ${name}: Expected tuple to have length ${toString len} but value '${toPretty tuple}' has length ${toString (length tuple)}"
         else
-          "in ${name}: ${recurse v 0}";
+          let
+            explainers = genList (
+              i: v: "in ${name}: in element ${toString i}: ${(elemAt types i).explain (elemAt v i)}"
+            ) len;
+          in
+          explainFirstFailingFunction verifiers explainers tuple;
     };
 
   /*
@@ -701,25 +734,27 @@ fix (self: {
     let
       verifyFuncs = map (type: type.verify) paramTypes;
       len = length paramTypes;
-      verifyResult = resultType.verify;
       recurse =
-        idx: acc:
-        if idx != len then
+        i: acc:
+        if i != len then
           # more parameters need to be passed to the function
           let
-            verify = elemAt verifyFuncs idx;
+            verify = elemAt verifyFuncs i;
           in
           value:
-          if verify value == true then
-            recurse (idx + 1) (acc value)
+          if verify value then
+            recurse (i + 1) (acc value)
           else
-            throw "while calling '${name}': while checking argument ${toString idx}: ${verify value}"
+            let
+              type = elemAt paramTypes i;
+            in
+            throw "while calling '${name}': while checking argument ${toString i}: ${type.explain value}"
         else
         # all parameters have been passed, check return value
-        if verifyResult acc == true then
+        if resultType.verify acc then
           acc
         else
-          throw "while calling '${name}': while checking return type: ${verifyResult acc}";
+          throw "while calling '${name}': while checking return type: ${resultType.explain acc}";
     in
     recurse 0;
 })
