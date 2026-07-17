@@ -282,11 +282,11 @@ lib.fix (
 
     intersection =
       let
-        struct1 = types.struct "struct1" {
+        struct1 = types.struct "1" {
           a = types.number;
         };
 
-        struct2 = types.struct "struct2" {
+        struct2 = types.struct "2" {
           a = types.int;
         };
 
@@ -305,7 +305,7 @@ lib.fix (
 
         testInvalid = {
           expr = testIntersection.inspect 1;
-          expected = "Expected type 'intersection<struct1,struct2>' but value '1' failed the type check";
+          expected = "Expected type 'intersection<struct<1>,struct<2>>' but value '1' failed the type check";
         };
       };
 
@@ -344,12 +344,12 @@ lib.fix (
 
     struct =
       let
-        testStruct = types.struct "testStruct" {
+        testStruct = types.struct "test1" {
           foo = types.string;
         };
 
         testStruct2 =
-          (types.struct "testStruct2" {
+          (types.struct "test2" {
             x = types.int;
             y = types.int;
           }).override
@@ -371,7 +371,7 @@ lib.fix (
 
         testMissingAttr = {
           expr = testStruct.inspect { };
-          expected = "in struct 'testStruct': missing member 'foo'";
+          expected = "in 'struct<test1>': missing member 'foo'";
         };
 
         testNonTotal = {
@@ -384,7 +384,7 @@ lib.fix (
             x = 1;
             y = 1;
           };
-          expected = "in struct 'testStruct2': VERBOTEN";
+          expected = "in 'struct<test2>': VERBOTEN";
         };
 
         testUnknownAttrNotAllowed = {
@@ -392,7 +392,7 @@ lib.fix (
             foo = "bar";
             bar = "foo";
           };
-          expected = "in struct 'testStruct': keys ['bar'] are unrecognized, expected keys are ['foo']";
+          expected = "in 'struct<test1>': keys ['bar'] are unrecognized, expected keys are ['foo']";
         };
 
         testUnknownAttr = {
@@ -405,20 +405,20 @@ lib.fix (
 
         testInvalidType = {
           expr = testStruct.inspect "bar";
-          expected = "in struct 'testStruct': Expected type 'testStruct' but value '\"bar\"' failed the type check";
+          expected = "in 'struct<test1>': Expected type 'struct<test1>' but value '\"bar\"' failed the type check";
         };
 
         testInvalidMember = {
           expr = testStruct.inspect {
             foo = 1;
           };
-          expected = "in struct 'testStruct': in member 'foo': Expected type 'string' but value '1' failed the type check";
+          expected = "in 'struct<test1>': in member 'foo': Expected type 'string' but value '1' failed the type check";
         };
       };
 
     optionalAttr =
       let
-        testStruct = types.struct "testOptionalAttrStruct" {
+        testStruct = types.struct "testOptionalAttr" {
           foo = types.string;
           optionalFoo = types.optionalAttr types.string;
         };
@@ -445,7 +445,7 @@ lib.fix (
             foo = "hello";
             optionalFoo = 1234;
           };
-          expected = "in struct 'testOptionalAttrStruct': in member 'optionalFoo': in optionalAttr<string>: Expected type 'string' but value '1234' failed the type check";
+          expected = "in 'struct<testOptionalAttr>': in member 'optionalFoo': in optionalAttr<string>: Expected type 'string' but value '1234' failed the type check";
         };
       };
 

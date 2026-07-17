@@ -577,11 +577,12 @@ fix (self: {
   */
   struct =
     # Name of struct type as a string
-    name:
+    name':
     # Attribute set of type definitions.
     types:
     assert isAttrs types;
     let
+      name = "struct<${name'}>";
       names = attrNames types;
 
       mkStruct' =
@@ -619,12 +620,12 @@ fix (self: {
             );
         in
         self.new {
-          inherit name;
+          name = name;
           verify = v: isAttrs v && all (verifier: verifier v == true) verifiers;
           explain =
             v:
             if !isAttrs v then
-              "in struct '${name}': ${defaultError name v}"
+              "in '${name}': ${defaultError name v}"
             else
               let
                 explainers =
@@ -634,23 +635,23 @@ fix (self: {
                       type = types.${attr};
                     in
                     if type.__optional or (!total) then
-                      v: "in struct '${name}': in member '${attr}': ${type.explain v.${attr}}"
+                      v: "in '${name}': in member '${attr}': ${type.explain v.${attr}}"
                     else
                       v:
                       if !v ? ${attr} then
-                        "in struct '${name}': missing member '${attr}'"
+                        "in '${name}': missing member '${attr}'"
                       else
-                        "in struct '${name}': in member '${attr}': ${type.explain v.${attr}}"
+                        "in '${name}': in member '${attr}': ${type.explain v.${attr}}"
                   ) names
                   ++ optionalElem (!unknown) (
                     v:
-                    "in struct '${name}': keys [${joinKeys (attrNames (removeAttrs v names))}] are unrecognized, expected keys are [${joinKeys names}]"
+                    "in '${name}': keys [${joinKeys (attrNames (removeAttrs v names))}] are unrecognized, expected keys are [${joinKeys names}]"
                   )
                   ++ optionalElem (verify != null) (
                     if explain != null then
-                      v: "in struct '${name}': ${explain v}"
+                      v: "in '${name}': ${explain v}"
                     else
-                      v: "in struct '${name}': custom verification function failed on value '${toPretty v}'"
+                      v: "in '${name}': custom verification function failed on value '${toPretty v}'"
                   );
               in
               explainFirstFailingFunction verifiers explainers v;
