@@ -46,7 +46,7 @@ lib.fix (
     string = {
       testInvalid = {
         expr = types.string.inspect 1;
-        expected = "Expected type 'string' but value '1' failed the type check";
+        expected = "in type 'string': value '1' failed the type check";
       };
 
       testValid = {
@@ -58,7 +58,7 @@ lib.fix (
     function = {
       testInvalid = {
         expr = types.function.inspect 1;
-        expected = "Expected type 'function' but value '1' failed the type check";
+        expected = "in type 'function': value '1' failed the type check";
       };
 
       testValid = {
@@ -70,7 +70,7 @@ lib.fix (
     path = {
       testInvalid = {
         expr = types.path.inspect 1;
-        expected = "Expected type 'path' but value '1' failed the type check";
+        expected = "in type 'path': value '1' failed the type check";
       };
 
       testValid = {
@@ -82,7 +82,7 @@ lib.fix (
     pathLike = {
       testInvalid = {
         expr = types.pathLike.inspect 1;
-        expected = "Expected type 'pathLike' but value '1' failed the type check";
+        expected = "in type 'pathLike': value '1' failed the type check";
       };
 
       testPath = {
@@ -100,7 +100,7 @@ lib.fix (
     derivation = {
       testInvalid = {
         expr = types.derivation.inspect { };
-        expected = "Expected type 'derivation' but value '{ }' failed the type check";
+        expected = "in type 'derivation': value '{ }' failed the type check";
       };
 
       testValid = {
@@ -125,14 +125,14 @@ lib.fix (
     never = {
       testInvalid = {
         expr = types.never.inspect 1234;
-        expected = "Expected type 'never' but value '1234' failed the type check";
+        expected = "in type 'never': value '1234' failed the type check";
       };
     };
 
     int = {
       testInvalid = {
         expr = types.int.inspect "x";
-        expected = "Expected type 'int' but value '\"x\"' failed the type check";
+        expected = "in type 'int': value '\"x\"' failed the type check";
       };
 
       testValid = {
@@ -144,7 +144,7 @@ lib.fix (
     float = {
       testInvalid = {
         expr = types.float.inspect "x";
-        expected = "Expected type 'float' but value '\"x\"' failed the type check";
+        expected = "in type 'float': value '\"x\"' failed the type check";
       };
 
       testValid = {
@@ -156,7 +156,7 @@ lib.fix (
     number = {
       testInvalid = {
         expr = types.number.inspect "x";
-        expected = "Expected type 'number' but value '\"x\"' failed the type check";
+        expected = "in type 'number': value '\"x\"' failed the type check";
       };
 
       testValidInt = {
@@ -173,7 +173,7 @@ lib.fix (
     bool = {
       testInvalid = {
         expr = types.bool.inspect "x";
-        expected = "Expected type 'bool' but value '\"x\"' failed the type check";
+        expected = "in type 'bool': value '\"x\"' failed the type check";
       };
 
       testValid = {
@@ -185,7 +185,7 @@ lib.fix (
     null = {
       testInvalid = {
         expr = types.null.inspect "x";
-        expected = "Expected type 'null' but value '\"x\"' failed the type check";
+        expected = "in type 'null': value '\"x\"' failed the type check";
       };
 
       testValid = {
@@ -197,7 +197,7 @@ lib.fix (
     attrs = {
       testInvalid = {
         expr = types.attrs.inspect "x";
-        expected = "Expected type 'attrs' but value '\"x\"' failed the type check";
+        expected = "in type 'attrs': value '\"x\"' failed the type check";
       };
 
       testValid = {
@@ -209,7 +209,7 @@ lib.fix (
     list = {
       testInvalid = {
         expr = types.list.inspect "x";
-        expected = "Expected type 'list' but value '\"x\"' failed the type check";
+        expected = "in type 'list': value '\"x\"' failed the type check";
       };
 
       testValid = {
@@ -230,12 +230,12 @@ lib.fix (
 
         testInvalidElem = {
           expr = testListOf.inspect [ 1 ];
-          expected = "in listOf<string> element: Expected type 'string' but value '1' failed the type check";
+          expected = "in type 'listOf<string>': in element: value '1' failed the type check";
         };
 
         testInvalidType = {
           expr = testListOf.inspect 1;
-          expected = "Expected type 'listOf<string>' but value '1' failed the type check";
+          expected = "in type 'listOf<string>': value '1' failed the type check";
         };
       };
 
@@ -255,12 +255,12 @@ lib.fix (
           expr = testAttrsOf.inspect {
             x = 1;
           };
-          expected = "in attrsOf<string> value: in attribute 'x': Expected type 'string' but value '1' failed the type check";
+          expected = "in type 'attrsOf<string>': in attribute 'x': value '1' failed the type check";
         };
 
         testInvalidType = {
           expr = testAttrsOf.inspect 1;
-          expected = "Expected type 'attrsOf<string>' but value '1' failed the type check";
+          expected = "in type 'attrsOf<string>': value '1' failed the type check";
         };
       };
 
@@ -276,7 +276,7 @@ lib.fix (
 
         testInvalid = {
           expr = testUnion.inspect 1;
-          expected = "Expected type 'union<string>' but value '1' failed the type check";
+          expected = "in type 'union<string>': value '1' failed the type check";
         };
       };
 
@@ -305,7 +305,7 @@ lib.fix (
 
         testInvalid = {
           expr = testIntersection.inspect 1;
-          expected = "Expected type 'intersection<struct<1>,struct<2>>' but value '1' failed the type check";
+          expected = "in type 'intersection<struct<1>,struct<2>>': value '1' failed the type check";
         };
       };
 
@@ -317,7 +317,7 @@ lib.fix (
 
       testInvalid = {
         expr = types.type.inspect { };
-        expected = "Expected type 'type' but value '{ }' failed the type check";
+        expected = "in type 'type': value '{ }' failed the type check";
       };
     };
 
@@ -338,7 +338,7 @@ lib.fix (
 
         testInvalid = {
           expr = testOption.inspect 3;
-          expected = "in nullOr<string>: Expected type 'string' but value '3' failed the type check";
+          expected = "in type 'nullOr<string>': value '3' failed the type check";
         };
       };
 
@@ -371,7 +371,7 @@ lib.fix (
 
         testMissingAttr = {
           expr = testStruct.inspect { };
-          expected = "in 'struct<test1>': missing member 'foo'";
+          expected = "in type 'struct<test1>': missing member 'foo'";
         };
 
         testNonTotal = {
@@ -384,7 +384,7 @@ lib.fix (
             x = 1;
             y = 1;
           };
-          expected = "in 'struct<test2>': VERBOTEN";
+          expected = "in type 'struct<test2>': VERBOTEN";
         };
 
         testUnknownAttrNotAllowed = {
@@ -392,7 +392,7 @@ lib.fix (
             foo = "bar";
             bar = "foo";
           };
-          expected = "in 'struct<test1>': keys ['bar'] are unrecognized, expected keys are ['foo']";
+          expected = "in type 'struct<test1>': keys ['bar'] are unrecognized, expected keys are ['foo']";
         };
 
         testUnknownAttr = {
@@ -405,14 +405,14 @@ lib.fix (
 
         testInvalidType = {
           expr = testStruct.inspect "bar";
-          expected = "in 'struct<test1>': Expected type 'struct<test1>' but value '\"bar\"' failed the type check";
+          expected = "in type 'struct<test1>': value '\"bar\"' failed the type check";
         };
 
         testInvalidMember = {
           expr = testStruct.inspect {
             foo = 1;
           };
-          expected = "in 'struct<test1>': in member 'foo': Expected type 'string' but value '1' failed the type check";
+          expected = "in type 'struct<test1>': in member 'foo' of type 'string': value '1' failed the type check";
         };
       };
 
@@ -445,7 +445,7 @@ lib.fix (
             foo = "hello";
             optionalFoo = 1234;
           };
-          expected = "in 'struct<testOptionalAttr>': in member 'optionalFoo': in optionalAttr<string>: Expected type 'string' but value '1234' failed the type check";
+          expected = "in type 'struct<testOptionalAttr>': in member 'optionalFoo' of type 'optionalAttr<string>': value '1234' failed the type check";
         };
       };
 
@@ -465,7 +465,7 @@ lib.fix (
 
         testNotHasElem = {
           expr = testEnum.inspect "nope";
-          expected = "'\"nope\"' is not a member of enum 'testEnum'";
+          expected = "in type 'testEnum': '\"nope\"' is not a member of enum 'testEnum'";
         };
       };
 
@@ -496,12 +496,12 @@ lib.fix (
       {
         testNotList = {
           expr = testTuple.inspect "xyz";
-          expected = "in tuple<string,int>: Expected type 'tuple<string,int>' but value '\"xyz\"' failed the type check";
+          expected = "in type 'tuple<string,int>': value '\"xyz\"' failed the type check";
         };
 
         testInvalidLength = {
           expr = testTuple.inspect [ ];
-          expected = "in tuple<string,int>: Expected tuple to have length 2 but value '[ ]' has length 0";
+          expected = "in type 'tuple<string,int>': expected tuple of length 2 but value '[ ]' has length 0";
         };
 
         testInvalidType = {
@@ -509,7 +509,7 @@ lib.fix (
             123
             "xyz"
           ];
-          expected = "in tuple<string,int>: in element 0: Expected type 'string' but value '123' failed the type check";
+          expected = "in type 'tuple<string,int>': in element 0 of type 'string': value '123' failed the type check";
         };
 
         testInvalidTypeTail = {
@@ -517,7 +517,7 @@ lib.fix (
             "xyz"
             "123"
           ];
-          expected = "in tuple<string,int>: in element 1: Expected type 'int' but value '\"123\"' failed the type check";
+          expected = "in type 'tuple<string,int>': in element 1 of type 'int': value '\"123\"' failed the type check";
         };
 
         testValid = {

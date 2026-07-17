@@ -116,11 +116,8 @@ let
   toPretty = (import ./lib.nix).toPretty { indent = "    "; };
 
   defaultError =
-    # Name of the type as a string
-    name:
     # value that failed the type check
-    v:
-    "Expected type '${name}' but value '${toPretty v}' failed the type check";
+    v: "value '${toPretty v}' failed the type check";
 
   fix =
     f:
@@ -202,14 +199,14 @@ fix (self: {
       # Returns true/false representing a success/failure.
       verify,
       # Function to generate an error message when the verify function fails.
-      explain ? defaultError name,
+      explain ? defaultError,
     }:
     assert isFunction verify;
     {
       inherit name;
       __name = head (split "<" name);
       inherit verify explain;
-      inspect = v: if verify v then null else explain v;
+      inspect = v: if verify v then null else "in type '${name}': ${explain v}";
       check =
         v:
         if verify v == true then
@@ -217,7 +214,7 @@ fix (self: {
         else if verify v == null then
           seq nullWarning v
         else
-          throw (explain v);
+          throw "in type '${name}': ${explain v}";
     };
 
   /*
@@ -400,13 +397,12 @@ fix (self: {
     # Null or t
     t:
     let
-      name = "nullOr<${t.name}>";
       inherit (t) verify;
     in
     self.new {
-      inherit name;
+      name = "nullOr<${t.name}>";
       verify = v: v == null || verify v;
-      explain = v: "in ${name}: ${t.explain v}";
+      explain = t.explain; # TODO: custom error message
     };
 
   /*
@@ -416,18 +412,17 @@ fix (self: {
     # Element type
     t:
     let
-      name = "listOf<${t.name}>";
       inherit (t) verify;
     in
     self.new {
-      inherit name;
+      name = "listOf<${t.name}>";
       verify = list: isList list && all verify list;
       explain =
         list:
         if !isList list then
-          defaultError name list
+          defaultError list
         else
-          "in ${name} element: ${explainFirstFailingValue verify t.explain list}";
+          "in element: ${explainFirstFailingValue verify t.explain list}";
     };
 
   /*
@@ -437,19 +432,18 @@ fix (self: {
     # Attribute value type
     t:
     let
-      name = "attrsOf<${t.name}>";
       inherit (t) verify;
     in
     self.new {
-      inherit name;
+      name = "attrsOf<${t.name}>";
       verify = attrs: isAttrs attrs && all verify (attrValues attrs);
       explain =
         attrs:
         if !isAttrs attrs then
-          defaultError name attrs
+          defaultError attrs
         else
           explainFirstFailingValue (key: verify attrs.${key}) (
-            key: "in ${name} value: in attribute '${key}': ${t.explain attrs.${key}}"
+            key: "in attribute '${key}': ${t.explain attrs.${key}}"
           ) (attrNames attrs);
     };
 
@@ -582,7 +576,6 @@ fix (self: {
     types:
     assert isAttrs types;
     let
-      name = "struct<${name'}>";
       names = attrNames types;
 
       mkStruct' =
@@ -620,12 +613,12 @@ fix (self: {
             );
         in
         self.new {
-          name = name;
+          name = "struct<${name'}>";
           verify = v: isAttrs v && all (verifier: verifier v == true) verifiers;
           explain =
             v:
             if !isAttrs v then
-              "in '${name}': ${defaultError name v}"
+              defaultError v
             else
               let
                 explainers =
@@ -635,23 +628,23 @@ fix (self: {
                       type = types.${attr};
                     in
                     if type.__optional or (!total) then
-                      v: "in '${name}': in member '${attr}': ${type.explain v.${attr}}"
+                      v: "in member '${attr}' of type '${type.name}': ${type.explain v.${attr}}"
                     else
                       v:
                       if !v ? ${attr} then
-                        "in '${name}': missing member '${attr}'"
+                        "missing member '${attr}'"
                       else
-                        "in '${name}': in member '${attr}': ${type.explain v.${attr}}"
+                        "in member '${attr}' of type '${type.name}': ${type.explain v.${attr}}"
                   ) names
                   ++ optionalElem (!unknown) (
                     v:
-                    "in '${name}': keys [${joinKeys (attrNames (removeAttrs v names))}] are unrecognized, expected keys are [${joinKeys names}]"
+                    "keys [${joinKeys (attrNames (removeAttrs v names))}] are unrecognized, expected keys are [${joinKeys names}]"
                   )
                   ++ optionalElem (verify != null) (
                     if explain != null then
-                      v: "in '${name}': ${explain v}"
+                      v: explain v
                     else
-                      v: "in '${name}': custom verification function failed on value '${toPretty v}'"
+                      v: "custom verification function failed on value '${toPretty v}'"
                   );
               in
               explainFirstFailingFunction verifiers explainers v;
@@ -672,13 +665,9 @@ fix (self: {
       };
     in
     t:
-    let
-      name = "optionalAttr<${t.name}>";
-    in
     self.new {
-      inherit name;
-      verify = t.verify;
-      explain = v: "in ${name}: ${t.explain v}";
+      name = "optionalAttr<${t.name}>";
+      inherit (t) verify explain;
     }
     // makeOptional;
 
@@ -705,23 +694,26 @@ fix (self: {
     types:
     assert isList types;
     let
-      name = "tuple<${concatStringsSep "," (map (t: t.name) types)}>";
       len = length types;
       verifiers = genList (i: v: (elemAt types i).verify (elemAt v i)) len;
     in
     self.new {
-      inherit name;
+      name = "tuple<${concatStringsSep "," (map (t: t.name) types)}>";
       verify = v: isList v && length v == len && all (verifier: verifier v) verifiers;
       explain =
         tuple:
         if !isList tuple then
-          "in ${name}: ${defaultError name tuple}"
+          defaultError tuple
         else if length tuple != len then
-          "in ${name}: Expected tuple to have length ${toString len} but value '${toPretty tuple}' has length ${toString (length tuple)}"
+          "expected tuple of length ${toString len} but value '${toPretty tuple}' has length ${toString (length tuple)}"
         else
           let
             explainers = genList (
-              i: v: "in ${name}: in element ${toString i}: ${(elemAt types i).explain (elemAt v i)}"
+              i:
+              let
+                type = elemAt types i;
+              in
+              v: "in element ${toString i} of type '${type.name}': ${type.explain (elemAt v i)}"
             ) len;
           in
           explainFirstFailingFunction verifiers explainers tuple;
@@ -749,13 +741,13 @@ fix (self: {
             let
               type = elemAt paramTypes i;
             in
-            throw "while calling '${name}': while checking argument ${toString i}: ${type.explain value}"
+            throw "in argument ${toString i}: ${type.explain value}"
         else
         # all parameters have been passed, check return value
         if resultType.verify acc then
           acc
         else
-          throw "while calling '${name}': while checking return type: ${resultType.explain acc}";
+          throw "in return type: ${resultType.explain acc}";
     in
     recurse 0;
 })
