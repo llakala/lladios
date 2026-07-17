@@ -25,22 +25,6 @@ let
     genList
     ;
 
-  sublist =
-    start: count: list:
-    let
-      len = length list;
-    in
-    genList (n: elemAt list (n + start)) (
-      if start >= len then
-        0
-      else if start + count > len then
-        len - start
-      else
-        count
-    );
-
-  take = count: sublist 0 count;
-
   last =
     list:
     if list == [ ] then
@@ -50,7 +34,8 @@ let
 
   init =
     list:
-    if list == [ ] then (throw "lists.init: list must not be empty!") else take (length list - 1) list;
+    assert list != [ ] || throw "lists.init: list must not be empty!";
+    genList (elemAt list) (length list - 1);
 
   mapAttrsToList = f: attrs: map (name: f name attrs.${name}) (attrNames attrs);
 
