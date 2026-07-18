@@ -1,6 +1,11 @@
 # run `nix-unit adios/tests.nix` to see if the tests pass
 let
-  inherit (builtins) foldl' mapAttrs substring;
+  inherit (builtins)
+    foldl'
+    isFunction
+    mapAttrs
+    substring
+    ;
 
   adios = import ../.;
   inherit (adios) types;
@@ -10,6 +15,7 @@ let
     "module"
     "modules"
     "apply"
+    "evalParams"
   ];
 
   testModules =
@@ -25,7 +31,7 @@ let
             test.module
           else
             throw "test didn't provide a 'modules' or 'module' argument!"
-        ) { };
+        ) (if test ? evalParams then test.evalParams else { });
       in
       removeAttrs test ignoredTestAttributes
       // {
@@ -34,11 +40,24 @@ let
 
 in
 mapAttrs testModules {
-  testBasic = {
-    module = {
-      impl = { options }: true;
+  basic = {
+    testCalling = {
+      module = {
+        impl = { options }: true;
+      };
+      expected = true;
     };
-    expected = true;
+
+    testTypecheckFailure = {
+      module = {
+        options.test = {
+          default = 0;
+          type = types.string;
+        };
+        impl = { options }: options.test;
+      };
+      expectedError.type = "ThrownError";
+    };
   };
 
   default = {
@@ -137,7 +156,15 @@ mapAttrs testModules {
       expected = true;
     };
 
-    testSelfCallable = {
+    testNoParentOfRoot = {
+      module = {
+        inputs.parentOfRoot.from = { parent }: parent;
+        impl = { inputs }: inputs.parentOfRoot;
+      };
+      expectedError.type = "ThrownError";
+    };
+
+    testCallingOwnImpl = {
       module = {
         options = {
           ranOnce = {
@@ -208,7 +235,7 @@ mapAttrs testModules {
               "/mutator2"
               "/mutator3"
             ];
-            mergeFunc = { mutators }: foldl' (acc: v: acc + v) 0 (mutators);
+            mergeFunc = { mutators }: foldl' (acc: v: acc + v) 0 mutators;
           };
           impl = { options }: options.test;
         };
@@ -216,19 +243,146 @@ mapAttrs testModules {
       apply = tree: tree.modules.getsMutated { };
       expected = 6;
     };
+    testMergeFuncOnly = {
+      module = {
+        options.foo = {
+          type = types.bool;
+          mergeFunc = _: true;
+        };
+        impl = { options }: options.foo;
+      };
+      expectedError.type = "ThrownError";
+    };
+    testMutatorsWithoutMergeFuncOrMutatorType = {
+      module = {
+        options.foo = {
+          type = types.bool;
+          mutators = [ ];
+        };
+        impl = { options }: options.foo;
+      };
+      expectedError.type = "ThrownError";
+    };
+  };
+
+  evalStage = {
+    testValid = {
+      module = {
+        options.test = {
+          type = types.string;
+          default = "hello world";
+        };
+        impl = { options }: options.test;
+      };
+      evalParams = {
+        options."/".test = "goodbye world";
+      };
+      expected = "goodbye world";
+    };
   };
 
   submodules = {
     testValid = {
       module = {
-        options.test.options = {
-          field1.type = types.bool;
-          field1.default = true;
-          field2.type = types.bool;
-          field2.default = true;
+        options.test = {
+          example = "we can add examples without erroring";
+          description = "and descriptions";
+          options = {
+            field1.type = types.bool;
+            field1.default = true;
+            field2.type = types.bool;
+            field2.default = true;
+          };
         };
         impl = { options }: options.test.field1 && options.test.field2;
       };
+      expected = true;
+    };
+
+    # submodules must only provide the `options` field, no `type`,
+    # `defaultFunc`, etc
+    testNoOtherFieldsAllowed = {
+      module = {
+        options.test = {
+          type = types.int;
+          default = 5;
+          options.subfield.type = types.bool;
+        };
+        impl = { options }: options.test;
+      };
+      expectedError.type = "ThrownError";
+    };
+  };
+
+  injections = {
+    testBasicDefaultSetting = {
+      module = adios.lib.inject [
+        {
+          options.test.type = types.bool;
+          impl = { options }: options.test;
+        }
+        {
+          options.test.default = true;
+        }
+      ];
+      expected = true;
+    };
+
+    testFunctionForm = {
+      modules = adios.lib.inject [
+        {
+          foo = {
+            options.test = {
+              type = types.int;
+              default = 10;
+            };
+            impl = { options }: options.test;
+          };
+        }
+        {
+          foo = old: {
+            options.test.default = old.options.test.default + 1;
+          };
+        }
+      ];
+      apply = tree: tree.modules.foo { };
+      expected = 11;
+    };
+
+    testNestedFunctionForm = {
+      modules = adios.lib.inject [
+        {
+          foo.modules.bar = {
+            options.test = {
+              type = types.int;
+              default = 10;
+            };
+            impl = { options }: options.test;
+          };
+        }
+        {
+          foo.modules.bar = old: {
+            options.test.default = old.options.test.default * 2;
+          };
+        }
+      ];
+      apply = tree: tree.modules.foo.modules.bar { };
+      expected = 20;
+    };
+
+    #
+    testFailingFunctionForm = {
+      modules = adios.lib.inject [
+        {
+          foo.lib.bar = {
+            baz = 1;
+          };
+        }
+        {
+          foo.lib.bar = old: { baz = old.baz * 2; };
+        }
+      ];
+      apply = tree: isFunction tree.modules.foo.lib.bar;
       expected = true;
     };
   };
