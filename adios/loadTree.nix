@@ -133,10 +133,15 @@ let
           __functor = _: _: module;
         };
     in
-    self: parent: inputFetcher:
+    parent':
+    let
+      # be friendly to partial application, so a single parent can be reused
+      # while recursing
+      parent = if parent'.path == "/" then root else recurse parent';
+    in
+    self: inputFetcher:
     callFunction inputFetcher {
-      inherit root;
-      parent = if parent.path == "/" then root else recurse parent;
+      inherit root parent;
       self = recurse self;
     } null;
 
@@ -246,7 +251,7 @@ in
 evalParams:
 let
   recurse =
-    parent: path: def:
+    fetchInput: path: def:
     let
       computeModuleOptions = computeOptions self.options self.path;
       errorPrefix = "in definition of '${self.path}'";
@@ -261,14 +266,16 @@ let
         mutations = checkAttrsOfType "${errorPrefix}: in attribute 'mutations'" checkMutation (
           def.mutations or { }
         );
-        modules = mapAttrs (name: recurse self "${path}/${name}") (def.modules or { });
+        modules = mapAttrs (name: recurse (fetchModuleByFunction self) "${path}/${name}") (
+          def.modules or { }
+        );
 
         args = {
           inputs = mapAttrs (
             _: input:
             (
               if input ? from then
-                fetchModuleByFunction self parent input.from
+                fetchInput self input.from
               else
                 seq modulePathWarning (
                   addWarningWithLocation input "path" "deprecated module path" (
@@ -326,4 +333,4 @@ let
     in
     self;
 in
-recurse (throw "Attempted to access parent of root module, but the root module has no parent!") ""
+recurse (fetchModuleByFunction (throw "Attempted to access parent of root module, but the root module has no parent!")) ""
