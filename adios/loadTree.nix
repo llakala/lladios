@@ -111,7 +111,7 @@ let
         # path axiomatically always starts with a slash
         tail (
           splitOnSlashes (
-            # get path relatvie to the current directory
+            # get path relative to the current directory
             if substring 0 1 relpath == "/" then relpath else toString (/. + current + "/${relpath}")
           )
         )
