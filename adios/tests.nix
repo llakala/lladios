@@ -56,7 +56,7 @@ mapAttrs testModules {
         };
         impl = { options }: options.test;
       };
-      expectedError.type = "ThrownError";
+      expectedError.msg = "in type 'string': value '0' failed the type check";
     };
   };
 
@@ -161,7 +161,7 @@ mapAttrs testModules {
         inputs.parentOfRoot.from = { parent }: parent;
         impl = { inputs }: inputs.parentOfRoot;
       };
-      expectedError.type = "ThrownError";
+      expectedError.msg = "Attempted to access parent of root module, but the root module has no parent!";
     };
 
     testCallingOwnImpl = {
