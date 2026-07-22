@@ -12,7 +12,9 @@ let
     merge = {
       lists.concat = { mutators }: concatLists mutators;
       strings.concatLines = { mutators }: concatStringsSep "\n" mutators;
-      attrs.flat = import ./adios/lib/merge-attrs-flat.nix;
+      attrs.flat = import ./adios/lib/merge-attrs-flat.nix {
+        inherit (types) toPretty;
+      };
       attrs.recursively = import ./adios/lib/merge-attrs-recursively.nix {
         inherit (types) toPretty;
       };

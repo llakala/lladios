@@ -17,6 +17,11 @@ let
     "apply"
     "evalParams"
   ];
+  normalTestAttributes = [
+    "expr"
+    "expected"
+    "expectedError"
+  ];
 
   testModules =
     testName: test:
@@ -33,10 +38,14 @@ let
             throw "test didn't provide a 'modules' or 'module' argument!"
         ) (if test ? evalParams then test.evalParams else { });
       in
-      removeAttrs test ignoredTestAttributes
-      // {
-        expr = (if test ? apply then test.apply else tree: tree { }) tree;
-      };
+      if test ? expr then
+        assert removeAttrs test normalTestAttributes == { };
+        test
+      else
+        removeAttrs test ignoredTestAttributes
+        // {
+          expr = (if test ? apply then test.apply else tree: tree { }) tree;
+        };
 
 in
 mapAttrs testModules {
@@ -373,6 +382,40 @@ mapAttrs testModules {
       ];
       apply = tree: isFunction tree.modules.foo.lib.bar;
       expected = true;
+    };
+  };
+
+  mergeFuncs = {
+    mergeAttrsFlat = {
+      testMergeAttrsFlatSuccess = {
+        expr = adios.lib.merge.attrs.flat {
+          mutators = [
+            { a = 1; }
+            { b = 2; }
+            { c.d = 3; }
+          ];
+        };
+        expected = {
+          a = 1;
+          b = 2;
+          c.d = 3;
+        };
+      };
+
+      testMergeAttrsFlatFailure = {
+        expr = adios.lib.merge.attrs.flat {
+          mutators = [
+            { foo.bar = 1; }
+            { foo.baz = 2; }
+          ];
+        };
+        expectedError.msg = ''
+          Collision on key 'foo' between mutators '\[
+            \{ foo = \{ bar = 1; }; }
+            \{ foo = \{ baz = 2; }; }
+          ]'.
+        '';
+      };
     };
   };
 }
