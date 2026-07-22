@@ -6,7 +6,6 @@ let
     all
     isAttrs
     length
-    attrValues
     ;
   isDerivation = value: (value.type or null) == "derivation";
 
