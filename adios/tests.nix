@@ -387,7 +387,7 @@ mapAttrs testModules {
 
   mergeFuncs = {
     mergeAttrsFlat = {
-      testMergeAttrsFlatSuccess = {
+      testSuccess = {
         expr = adios.lib.merge.attrs.flat {
           mutators = [
             { a = 1; }
@@ -402,7 +402,7 @@ mapAttrs testModules {
         };
       };
 
-      testMergeAttrsFlatFailure = {
+      testFailure = {
         expr = adios.lib.merge.attrs.flat {
           mutators = [
             { foo.bar = 1; }
@@ -415,6 +415,59 @@ mapAttrs testModules {
             \{ foo = \{ baz = 2; }; }
           ]'.
         '';
+      };
+    };
+
+    mergeAttrsRecursively = {
+      testSuccess = {
+        expr = adios.lib.merge.attrs.recursively {
+          mutators = [
+            { foo.bar = 1; }
+            { foo.baz = 2; }
+          ];
+        };
+        expected = {
+          foo.bar = 1;
+          foo.baz = 2;
+        };
+      };
+
+      testFailure = {
+        expr = adios.lib.merge.attrs.recursively {
+          mutators = [
+            { foo.bar = 1; }
+            { foo.bar = 2; }
+          ];
+        };
+        expectedError.msg = ''
+          While attempting to merge mutators:
+          \[
+            \{ foo = \{ bar = 1; }; }
+            \{ foo = \{ bar = 2; }; }
+          ]
+          Found key 'bar' set to multiple values that couldn't be merged.
+          Unmergeable values: \[ 1 2 ]'';
+      };
+    };
+
+    withOrder = {
+      testSuccess = {
+        expr = adios.lib.merge.general.withOrder adios.lib.merge.lists.concat {
+          mutators = [
+            {
+              value = [ "hello" ];
+              order = 1;
+            }
+            {
+              value = [ "world" ];
+              order = 2;
+            }
+          ];
+        };
+        expected = [
+          "hello"
+          "world"
+        ];
       };
     };
   };
