@@ -92,6 +92,7 @@ mapAttrs testModules {
       expected = true;
     };
 
+    # default and defaultFunc are expected to be disjoint
     testInvalidTogether = {
       module = {
         options.test = {
@@ -150,6 +151,8 @@ mapAttrs testModules {
       expected = true;
     };
 
+    # inputs.$foo.from is called with intersectAttrs - you should be able to use
+    # multiple
     testParentRootAndSelf = {
       module = {
         inputs.test.from =
@@ -173,6 +176,8 @@ mapAttrs testModules {
       expectedError.msg = "Attempted to access parent of root module, but the root module has no parent!";
     };
 
+    # calling `options {}` calls the impl, just like calling `inputs.foo {}`
+    # would
     testCallingOwnImpl = {
       module = {
         options = {
@@ -186,7 +191,10 @@ mapAttrs testModules {
       expected = true;
     };
   };
+
   laziness = {
+    # only the attrNames of options are expected to be forced in this case, not
+    # the attrValues
     testUnusedOption = {
       module = {
         options = {
@@ -204,6 +212,8 @@ mapAttrs testModules {
       expected = true;
     };
 
+    # Options without a default or impl-stage value shouldn't be included in the
+    # options attrset
     testNoValueOption = {
       module = {
         options = {
@@ -232,6 +242,7 @@ mapAttrs testModules {
         mutator3 = {
           mutations."/getsMutated".test = _: 3;
         };
+        # this isn't in the mutators list, so it's completely ignored
         unsetMutator = {
           mutations."/getsMutated".test = _: 100;
         };
@@ -243,6 +254,7 @@ mapAttrs testModules {
               "/mutator2"
               "/mutator3"
             ];
+            # add the values
             mergeFunc = { mutators }: foldl' (acc: v: acc + v) 0 mutators;
           };
           impl = { options }: options.test;
@@ -251,6 +263,8 @@ mapAttrs testModules {
       apply = tree: tree.modules.getsMutated { };
       expected = 6;
     };
+
+    # 'mergeFunc' must be set if 'mutators' are
     testMutatorsWithoutMergeFunc = {
       module = {
         options.foo = {
@@ -368,19 +382,21 @@ mapAttrs testModules {
       expected = 20;
     };
 
-    #
+    # for the function form to work, the function must be under
+    # /\w*(.modules.\w*)*/.
     testFailingFunctionForm = {
-      modules = adios.lib.inject [
-        {
-          foo.lib.bar = {
-            baz = 1;
-          };
-        }
-        {
-          foo.lib.bar = old: { baz = old.baz * 2; };
-        }
-      ];
-      apply = tree: isFunction tree.modules.foo.lib.bar;
+      expr =
+        isFunction
+          (adios.lib.inject [
+            {
+              foo.meta.modules.bar = {
+                baz = 1;
+              };
+            }
+            {
+              foo.meta.modules.bar = old: { baz = old.baz * 2; };
+            }
+          ]).foo.meta.modules.bar;
       expected = true;
     };
   };
@@ -402,6 +418,7 @@ mapAttrs testModules {
         };
       };
 
+      # the toplevel keys must be disjoint
       testFailure = {
         expr = adios.lib.merge.attrs.flat {
           mutators = [
