@@ -1,5 +1,53 @@
 Any new features or breaking changes will be listed here.
 
+# Deprecated mutatorType
+
+The `mutatorType` attribute has been deprecated. Instead, individual mutators are now expected to return the same type
+as the mergeFunc itself.
+
+Usage of the form:
+
+```nix
+{
+  options.foo = {
+    type = types.listOf types.string;
+    mutatorType = types.listOf types.string;
+    mergeFunc = adios.lib.merge.lists.concat; # or whatever merge func you use
+  };
+}
+```
+
+Should be replaced with:
+
+```nix
+{
+  options.foo = {
+    type = types.listOf types.string; # now also applies to the individual mutators
+    mergeFunc = adios.lib.merge.lists.concat;
+  };
+}
+```
+
+This change makes mutators less powerful, as you're no longer able to specify a different type for mutators and the
+final result of the option. However, this was a footgun for the following reasons:
+- It was unclear in documentation, especially for beginners. If the user was setting an option mutably, they could
+  ignore the `type`, as that was just an implementation detail of the `mergeFunc`. If they weren't setting the option
+  mutably, they could ignore the `mutatorType`, since it didn't apply to them at all.
+- It encouraged parsing an option into its final result within the mergeFunc itself. Here's an example of this issue:
+  ```nix
+  {
+    options.bar = {
+      type = types.string;
+      mutatorType = types.attrs;
+      mergeFunc = { mutators }: builtins.toJSON (adios.lib.merge.attrs.recursively { inherit mutators; });
+    };
+  }
+  ```
+  This option gives special treatment to being set mutably, as anyone who sets it non-mutably has to run toJSON on their
+  own. The mutator API is supposed to prevent this kind of thing - options that set a `mergeFunc` but don't set
+  `mutators` should be equally usable mutably and non-mutably. The `builtins.toJSON` here should instead be performed
+  inside the `impl`, instead of in the `mergeFunc` itself.
+
 # Only one adios entrypoint
 
 Importing adios through `${sources.adios}/adios` has been deprecated.

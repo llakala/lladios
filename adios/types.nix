@@ -40,7 +40,7 @@ let
         description = optionalAttr string;
         default = optionalAttr any;
         defaultFunc = optionalAttr function;
-        mutatorType = optionalAttr type;
+        mutatorType = optionalAttr type; # TODO: remove
         mergeFunc = optionalAttr function;
         mutators = optionalAttr (listOf string);
         example = optionalAttr any;
@@ -50,18 +50,14 @@ let
             option:
             # at least one of these must be false
             (!option ? default || !option ? defaultFunc)
-            # if one is defined, the other must be
-            && (option ? mutatorType == option ? mergeFunc)
             # if mutators are set, then these must be
-            && (!option ? mutators || option ? mutatorType && option ? mergeFunc);
+            && (!option ? mutators || option ? mergeFunc);
           explain =
             option:
             if option ? default && option ? defaultFunc then
               "'default' & 'defaultFunc' are mutually exclusive"
-            else if option ? mutatorType != option ? mergeFunc then
-              "if either 'mutatorType' or 'mergeFunc' is specified, the other must be as well"
             else
-              "if 'mutators' are specified, 'mergeFunc' and 'mutatorType' must be as well";
+              "if 'mutators' are specified, 'mergeFunc' must be as well";
         };
 
     subOptions = struct "subOptions" {

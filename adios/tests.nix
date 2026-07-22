@@ -229,7 +229,6 @@ mapAttrs testModules {
         getsMutated = {
           options.test = {
             type = types.int;
-            mutatorType = types.int;
             mutators = [
               "/mutator1"
               "/mutator2"
@@ -243,17 +242,7 @@ mapAttrs testModules {
       apply = tree: tree.modules.getsMutated { };
       expected = 6;
     };
-    testMergeFuncOnly = {
-      module = {
-        options.foo = {
-          type = types.bool;
-          mergeFunc = _: true;
-        };
-        impl = { options }: options.foo;
-      };
-      expectedError.type = "ThrownError";
-    };
-    testMutatorsWithoutMergeFuncOrMutatorType = {
+    testMutatorsWithoutMergeFunc = {
       module = {
         options.foo = {
           type = types.bool;

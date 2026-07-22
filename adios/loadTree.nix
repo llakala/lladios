@@ -83,6 +83,15 @@ let
     See the lladios changelog for rationale and a migration guide:
     https://github.com/llakala/lladios/blob/main/CHANGELOG.md#input-references
   '' null;
+
+  mutatorTypeWarning = warn ''
+    at least one of your adios modules used 'mutatorType' for an option. This has been deprecated, and 'type' now also
+    applies to individual mutators as well. Options that use a different 'type' and 'mutatorType' should be refactored
+    to use the same type.
+
+    See the lladios changelog for rationale and a migration guide:
+    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#deprecated-mutatortype
+  '' null;
 in
 # Self-reference for the result of this file
 tree:
@@ -147,6 +156,10 @@ let
 
   computeMutators =
     modulePath: errorPrefix: name: option: params:
+    let
+      check =
+        if option ? mutatorType then seq mutatorTypeWarning option.mutatorType.check else option.type.check;
+    in
     concatMap (
       mutatorPath':
       let
@@ -157,7 +170,7 @@ let
       if resolution.mutations ? ${modulePath}.${name} then
         [
           (addErrorContext "${errorPrefix}: in mutator '${resolution.path}' of option '${name}'" (
-            option.mutatorType.check (callFunction resolution.mutations.${modulePath}.${name} resolution.args)
+            check (callFunction resolution.mutations.${modulePath}.${name} resolution.args)
           ))
         ]
       else
@@ -168,9 +181,7 @@ let
     ++ optionals (params ? ${name}) [
       # TODO: improve this error message to make it clearer what "outside
       # mutator" is
-      (addErrorContext "${errorPrefix}: in outside mutator of option '${name}'" (
-        option.mutatorType.check params.${name}
-      ))
+      (addErrorContext "${errorPrefix}: in outside mutator of option '${name}'" (check params.${name}))
     ];
 
   # Compute options from defaults & provided args
