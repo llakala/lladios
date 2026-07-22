@@ -1,5 +1,17 @@
 Any new features or breaking changes will be listed here.
 
+# Only one adios entrypoint
+
+Importing adios through `${sources.adios}/adios` has been deprecated.
+
+Before forking, the non-nested entrypoint had `adios` and `adios-contrib` as individual attributes, which meant it was
+simpler to simply import the adios directory. However, adios-contrib has been removed for four months, and the primary
+default.nix has functioned the same as importing the adios directory.
+
+This comes along with a full removal - `adios = (import sources.adios).adios;` now errors with an unknown attribute. This has
+been warning for four months. As the default.nix is meant to be the primary entrypoint for everyone, and this ends up
+accidentally allowing `{ adios, ... }:` in individual modules, we choose to remove it altogether.
+
 # New typedef function
 
 `typedef` and `typedef'` have been deprecated in favor of `types.new`, which uses structured attributes and combines

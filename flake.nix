@@ -1,6 +1,6 @@
 {
   description = "Adios";
   outputs = _: {
-    adios = import ./adios;
+    adios = import ./.;
   };
 }
