@@ -4,25 +4,26 @@
 
 let
   inherit (builtins)
-    isInt
-    isFloat
-    isString
-    filter
-    isList
-    split
-    concatStringsSep
-    replaceStrings
     addErrorContext
-    length
-    isFunction
-    functionArgs
+    attrValues
+    concatStringsSep
     elemAt
-    isAttrs
-    attrNames
-    match
-    isPath
-    toJSON
+    filter
+    functionArgs
     genList
+    isAttrs
+    isFloat
+    isFunction
+    isInt
+    isList
+    isPath
+    isString
+    length
+    mapAttrs
+    match
+    replaceStrings
+    split
+    toJSON
     ;
 
   last =
@@ -37,7 +38,7 @@ let
     assert list != [ ] || throw "lists.init: list must not be empty!";
     genList (elemAt list) (length list - 1);
 
-  mapAttrsToList = f: attrs: map (name: f name attrs.${name}) (attrNames attrs);
+  mapAttrsToList = f: attrs: attrValues (mapAttrs f attrs);
 
   concatMapStringsSep =
     sep: f: list:
@@ -104,7 +105,7 @@ in
         # as the resulting string may not parse back as a float (e.g. 42, 1e-06), but for
         # pretty-printing purposes this is acceptable.
         else if isFloat v then
-          builtins.toJSON v
+          toJSON v
         else if isString v then
           let
             lines = filter (v: !isList v) (split "\n" v);
