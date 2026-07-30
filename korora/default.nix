@@ -92,7 +92,6 @@ let
     elem
     elemAt
     genList
-    head
     isAttrs
     isBool
     isFloat
@@ -103,7 +102,6 @@ let
     isString
     length
     seq
-    split
     ;
   warn = builtins.warn or builtins.trace;
 
@@ -203,9 +201,7 @@ fix (self: {
     }:
     assert isFunction verify;
     {
-      inherit name;
-      __name = head (split "<" name);
-      inherit verify explain;
+      inherit name verify explain;
       inspect = v: if verify v then null else "in type '${name}': ${explain v}";
       check =
         v:

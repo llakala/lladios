@@ -1,5 +1,10 @@
 Any new features or breaking changes will be listed here.
 
+# `__name` attribute removed
+
+Types no longer have an `__name` attribute. This was defined as an extremely trivial `head (split "<" name)`, which can
+be done by the user if necessary.
+
 # Deprecated mutatorType
 
 The `mutatorType` attribute has been deprecated. Instead, individual mutators are now expected to return the same type
