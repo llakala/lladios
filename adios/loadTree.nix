@@ -101,7 +101,7 @@ let
     let
       split = builtins.split "/";
       splitOnSlashes = s: filter isString (split s);
-      selectModule =
+      selectModule = foldl' (
         module: tok:
         if module ? modules.${tok} then
           module.modules.${tok}
@@ -109,14 +109,15 @@ let
           throw ''
             Module path `${tok}` is not a child module of `${module.path}`.
             Valid children of `${module.path}`: ${printList (attrNames module.modules)}
-          '';
+          ''
+      ) tree;
     in
     current: relpath:
     assert relpath != "";
     if relpath == "/" then
       tree
     else
-      foldl' selectModule tree (
+      selectModule (
         # path axiomatically always starts with a slash
         tail (
           splitOnSlashes (
