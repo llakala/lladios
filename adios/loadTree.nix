@@ -167,7 +167,7 @@ let
       in
       # TODO: decide whether to error here, if a module didn't
       # mutate when it was supposed to
-      if resolution.mutations ? ${modulePath}.${name} then
+      if resolution ? mutations.${modulePath}.${name} then
         [
           (addErrorContext "${errorPrefix}: in mutator '${resolution.path}' of option '${name}'" (
             check (callFunction resolution.mutations.${modulePath}.${name} resolution.args)
@@ -273,19 +273,20 @@ let
       self = {
         options = checkOptions "${errorPrefix}: in attribute 'options'" (def.options or { });
         inputs = checkInputs "${errorPrefix}: in attribute 'inputs'" (def.inputs or { });
-        mutations = checkMutations "${errorPrefix}: in attribute 'mutations'" (def.mutations or { });
+        modules = mapAttrs (name: recurse (fetchModuleByFunction self) "${path}/${name}") (
+          def.modules or { }
+        );
+        path = if path == "" then "/" else path;
+
         ${if def ? types then "types" else null} =
           checkTypedefs "${errorPrefix}: in attribute 'types'" def.types;
+        ${if def ? mutations then "mutations" else null} =
+          checkMutations "${errorPrefix}: in attribute 'mutations'" def.mutations;
         ${if def ? lib then "lib" else null} = addErrorContext "${errorPrefix}: in attribute 'lib'" (
           checkLib def.lib
         );
         ${if def ? impl then "impl" else null} = addErrorContext "${errorPrefix}: in attribute 'impl'" (
           checkImpl def.impl
-        );
-
-        path = if path == "" then "/" else path;
-        modules = mapAttrs (name: recurse (fetchModuleByFunction self) "${path}/${name}") (
-          def.modules or { }
         );
 
         args = {
