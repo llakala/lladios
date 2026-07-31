@@ -268,7 +268,7 @@ let
     fetchInput: path: def:
     let
       errorPrefix = "in definition of '${self.path}'";
-      result = callFunction self.impl self.args;
+      result = callFunction def.impl self.args;
 
       self = {
         options = checkOptions "${errorPrefix}: in attribute 'options'" (def.options or { });
@@ -335,7 +335,7 @@ let
                   };
               };
             in
-            callFunction self.impl args;
+            callFunction def.impl args;
       };
     in
     self;
