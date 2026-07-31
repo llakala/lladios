@@ -185,13 +185,13 @@ let
     ];
 
   # Compute options from defaults & provided args
-  computeOptions =
+  computeOptions' =
+    # why the options had to be computed
+    reasonForError:
     # Defined options
     options:
     # Path from root of the current module
     modulePath:
-    # why the given module had to compute the options
-    reasonForError:
     # Computed args fixpoint
     args:
     # parameters given explicitly in eval/impl stage
@@ -224,7 +224,7 @@ let
         # Compute nested options
         else if option ? options then
           let
-            value = computeOptions option.options modulePath reasonForError args (params.${name} or { });
+            value = computeOptions' reasonForError option.options modulePath args (params.${name} or { });
           in
           # Only return a value if suboptions actually returned anything
           if value != { } then [ { inherit name value; } ] else [ ]
@@ -257,6 +257,9 @@ let
           [ ]
       ) (attrNames options)
     );
+
+  cacheComputedOptions = computeOptions' "in";
+  recomputeOptions = computeOptions' "while calling";
 in
 # Directly passed values for options in the eval stage
 evalParams:
@@ -264,10 +267,9 @@ let
   recurse =
     fetchInput: path: def:
     let
-      computeModuleOptions = computeOptions self.options self.path;
       errorPrefix = "in definition of '${self.path}'";
-
       result = callFunction self.impl self.args;
+
       self = {
         options = checkOptions "${errorPrefix}: in attribute 'options'" (def.options or { });
         inputs = checkInputs "${errorPrefix}: in attribute 'inputs'" (def.inputs or { });
@@ -281,10 +283,10 @@ let
           checkImpl def.impl
         );
 
+        path = if path == "" then "/" else path;
         modules = mapAttrs (name: recurse (fetchModuleByFunction self) "${path}/${name}") (
           def.modules or { }
         );
-        path = if path == "" then "/" else path;
 
         args = {
           inputs = mapAttrs (
@@ -301,7 +303,7 @@ let
             ).args.options
           ) self.inputs;
           options =
-            computeModuleOptions "in" self.args (evalParams.${self.path} or { })
+            cacheComputedOptions self.options self.path self.args (evalParams.${self.path} or { })
             # If the current module has an impl, include it in the computed args,
             # so the module can be called inside the tree
             // {
@@ -320,7 +322,7 @@ let
               args = {
                 inherit (self.args) inputs;
                 options =
-                  computeModuleOptions "while calling" args (
+                  recomputeOptions self.options self.path args (
                     if evalParams ? ${self.path} then
                       mergeOptionsUnchecked self.options evalParams.${self.path} implParams
                     else
