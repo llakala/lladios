@@ -1,17 +1,13 @@
 {
   stdenvNoCC,
-  __src ? ../.,
   mdbook,
-  mdbook-cmdrun,
 }:
-
 stdenvNoCC.mkDerivation {
-  pname = "adios-nix-docs-html";
+  pname = "adios-docs";
   version = "0.1";
-  src = __src;
+  src = ./.;
   nativeBuildInputs = [
     mdbook
-    mdbook-cmdrun
   ];
 
   dontConfigure = true;
@@ -21,14 +17,17 @@ stdenvNoCC.mkDerivation {
 
   buildPhase = ''
     runHook preBuild
-    cd doc
+
     mdbook build
+
     runHook postBuild
   '';
 
   installPhase = ''
     runHook preInstall
+
     mv book $out
+
     runHook postInstall
   '';
 }

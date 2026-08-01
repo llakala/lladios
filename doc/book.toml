@@ -1,9 +1,0 @@
-[book]
-authors = ["adisbladis", "llakala"]
-language = "en"
-multilingual = false
-src = "src"
-title = "Adios"
-
-[preprocessor.cmdrun]
-command = "mdbook-cmdrun"
