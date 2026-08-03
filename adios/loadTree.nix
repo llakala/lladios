@@ -157,8 +157,8 @@ let
 
   computeMutators =
     {
-      modulePath,
-      errorPrefix,
+      self,
+      errorContext,
       name,
       option,
       params,
@@ -170,15 +170,16 @@ let
     concatMap (
       mutatorPath':
       let
-        resolution = fetchModuleByPath modulePath mutatorPath';
+        resolution = fetchModuleByPath self.path mutatorPath';
       in
       # TODO: decide whether to error here, if a module didn't
       # mutate when it was supposed to
-      if resolution ? mutations.${modulePath}.${name} then
+      if resolution ? mutations.${self.path}.${name} then
         [
-          (addErrorContext "${errorPrefix}: in mutator '${resolution.path}' of option '${name}'" (
-            check (callFunction resolution.mutations.${modulePath}.${name} resolution.args)
-          ))
+          (addErrorContext
+            "${errorContext} '${self.path}': in mutator '${resolution.path}' of option '${name}'"
+            (check (callFunction resolution.mutations.${self.path}.${name} resolution.args))
+          )
         ]
       else
         [ ]
@@ -188,7 +189,9 @@ let
     ++ optionals (params ? ${name}) [
       # TODO: improve this error message to make it clearer what "outside
       # mutator" is
-      (addErrorContext "${errorPrefix}: in outside mutator of option '${name}'" (check params.${name}))
+      (addErrorContext "${errorContext} '${self.path}': in outside mutator of option '${name}'" (
+        check params.${name}
+      ))
     ];
 
   # Compute options from defaults & provided args
@@ -224,9 +227,13 @@ let
                     args
                     // {
                       mutators = computeMutators {
-                        modulePath = self.path;
-                        errorPrefix = "${errorContext} '${self.path}'";
-                        inherit name option params;
+                        inherit
+                          self
+                          errorContext
+                          name
+                          option
+                          params
+                          ;
                       };
                     }
                   )
