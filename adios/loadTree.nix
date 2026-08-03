@@ -156,7 +156,13 @@ let
     } null;
 
   computeMutators =
-    modulePath: errorPrefix: name: option: params:
+    {
+      modulePath,
+      errorPrefix,
+      name,
+      option,
+      params,
+    }:
     let
       check =
         if option ? mutatorType then seq mutatorTypeWarning option.mutatorType.check else option.type.check;
@@ -186,23 +192,25 @@ let
     ];
 
   # Compute options from defaults & provided args
-  computeOptions' =
-    # why the options had to be computed
-    reasonForError:
-    # Defined options
-    options:
-    # Path from root of the current module
-    modulePath:
-    # Computed args fixpoint
-    args:
-    # parameters given explicitly in eval/impl stage
-    params:
+  computeOptions =
+    {
+      # The current module
+      self,
+      # Defined options
+      options ? self.options,
+      # Computed args fixpoint
+      args ? self.args,
+      # why the options had to be computed
+      errorContext ? "in",
+      # parameters given explicitly in eval/impl stage
+      params ? null,
+    }:
     listToAttrs (
       concatMap (
         name:
         let
           option = options.${name};
-          errorMessage = "${reasonForError} '${modulePath}': in option '${name}'";
+          errorMessage = "${errorContext} '${self.path}': in option '${name}'";
         in
         # Gross hack - if you want to always go through the mergeFunc,
         # set `mutators = []`.
@@ -215,17 +223,26 @@ let
                   callFunction option.mergeFunc (
                     args
                     // {
-                      mutators = computeMutators modulePath "${reasonForError} '${modulePath}'" name option params;
+                      mutators = computeMutators {
+                        modulePath = self.path;
+                        errorPrefix = "${errorContext} '${self.path}'";
+                        inherit name option params;
+                      };
                     }
                   )
                 )
               );
             }
           ]
+
         # Compute nested options
         else if option ? options then
           let
-            value = computeOptions' reasonForError option.options modulePath args (params.${name} or { });
+            value = computeOptions {
+              inherit self args errorContext;
+              inherit (option) options;
+              params = params.${name} or { };
+            };
           in
           # Only return a value if suboptions actually returned anything
           if value != { } then [ { inherit name value; } ] else [ ]
@@ -258,9 +275,6 @@ let
           [ ]
       ) (attrNames options)
     );
-
-  cacheComputedOptions = computeOptions' "in";
-  recomputeOptions = computeOptions' "while calling";
 in
 # Directly passed values for options in the eval stage
 evalParams:
@@ -305,7 +319,10 @@ let
             ).args.options
           ) self.inputs;
           options =
-            cacheComputedOptions self.options self.path self.args (evalParams.${self.path} or { })
+            computeOptions {
+              inherit self;
+              ${if evalParams ? ${self.path} then "params" else null} = evalParams.${self.path};
+            }
             # If the current module has an impl, include it in the computed args,
             # so the module can be called inside the tree
             // {
@@ -324,12 +341,16 @@ let
               args = {
                 inherit (self.args) inputs;
                 options =
-                  recomputeOptions self.options self.path args (
-                    if evalParams ? ${self.path} then
-                      mergeOptionsUnchecked self.options evalParams.${self.path} implParams
-                    else
-                      implParams
-                  )
+                  computeOptions {
+                    inherit self args;
+                    inherit (self) options;
+                    errorContext = "while calling";
+                    params =
+                      if evalParams ? ${self.path} then
+                        mergeOptionsUnchecked self.options evalParams.${self.path} implParams
+                      else
+                        implParams;
+                  }
                   # Current module necessarily defines a functor - include
                   # it in the computed args
                   // {
