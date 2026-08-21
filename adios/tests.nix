@@ -264,6 +264,25 @@ mapAttrs testModules {
       expected = 6;
     };
 
+    # when mutating own module, options set in the impl stage should be
+    # propagated to the mutation, rather than using the old args fixpoint
+    testMutationOfOwnModule = {
+      module = {
+        options.mutatedOption = {
+          type = types.list;
+          mutators = [ "/" ];
+          mergeFunc = adios.lib.merge.lists.concat;
+        };
+        options.implStageOption = {
+          type = types.string;
+        };
+        mutations."/".mutatedOption = { options }: [ options.implStageOption ];
+        impl = { options }: options.mutatedOption;
+      };
+      apply = tree: tree { implStageOption = "demo"; };
+      expected = [ "demo" ];
+    };
+
     # 'mergeFunc' must be set if 'mutators' are
     testMutatorsWithoutMergeFunc = {
       module = {
