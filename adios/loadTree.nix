@@ -158,6 +158,7 @@ let
   computeMutators =
     {
       self,
+      args,
       errorContext,
       name,
       option,
@@ -168,9 +169,12 @@ let
         if option ? mutatorType then seq mutatorTypeWarning option.mutatorType.check else option.type.check;
     in
     concatMap (
-      mutatorPath':
+      mutatorPath:
       let
-        resolution = fetchModuleByPath self.path mutatorPath';
+        resolution = fetchModuleByPath self.path mutatorPath;
+        # if a module mutates itself and sets something in the impl stage,
+        # it needs access to the newest version of args, not the cached one
+        args' = if self.path == mutatorPath then args else resolution.args;
       in
       # TODO: decide whether to error here, if a module didn't
       # mutate when it was supposed to
@@ -178,7 +182,7 @@ let
         [
           (addErrorContext
             "${errorContext} '${self.path}': in mutator '${resolution.path}' of option '${name}'"
-            (check (callFunction resolution.mutations.${self.path}.${name} resolution.args))
+            (check (callFunction resolution.mutations.${self.path}.${name} args'))
           )
         ]
       else
@@ -229,6 +233,7 @@ let
                       mutators = computeMutators {
                         inherit
                           self
+                          args
                           errorContext
                           name
                           option
