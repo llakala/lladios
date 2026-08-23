@@ -75,23 +75,7 @@ let
           [ ]
       ) (attrNames options)
     );
-
-  modulePathWarning = warn ''
-    at least one of your Adios modules used `.path` to specify an input's location in the tree. This
-    has been deprecated in favor of `.from`.
-
-    See the lladios changelog for rationale and a migration guide:
-    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#input-references
-  '' null;
-
-  mutatorTypeWarning = warn ''
-    at least one of your adios modules used 'mutatorType' for an option. This has been deprecated, and 'type' now also
-    applies to individual mutators as well. Options that use a different 'type' and 'mutatorType' should be refactored
-    to use the same type.
-
-    See the lladios changelog for rationale and a migration guide:
-    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#deprecated-mutatortype
-  '' null;
+  warnings = import ./warnings.nix { inherit warn; };
 in
 # Self-reference for the result of this file
 tree:
@@ -166,7 +150,10 @@ let
     }:
     let
       check =
-        if option ? mutatorType then seq mutatorTypeWarning option.mutatorType.check else option.type.check;
+        if option ? mutatorType then
+          seq warnings.mutatorType option.mutatorType.check
+        else
+          option.type.check;
     in
     concatMap (
       mutatorPath:
@@ -323,7 +310,7 @@ let
               if input ? from then
                 fetchInput self input.from
               else
-                seq modulePathWarning (
+                seq warnings.modulePath (
                   addWarningWithLocation input "path" "deprecated module path" (
                     fetchModuleByPath self.path input.path
                   )
