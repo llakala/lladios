@@ -102,7 +102,7 @@ mapAttrs testModules {
         };
         impl = { options }: options.test;
       };
-      expectedError.type = "ThrownError";
+      expectedError.msg = "in type 'option': 'default' & 'defaultFunc' are mutually exclusive";
     };
 
   };
@@ -292,7 +292,7 @@ mapAttrs testModules {
         };
         impl = { options }: options.foo;
       };
-      expectedError.type = "ThrownError";
+      expectedError.msg = "in type 'option': if 'mutators' are specified, 'mergeFunc' must be as well";
     };
   };
 
@@ -341,7 +341,7 @@ mapAttrs testModules {
         };
         impl = { options }: options.test;
       };
-      expectedError.type = "ThrownError";
+      expectedError.msg = "in type 'option': keys \\['default', 'type'\\] are unrecognized, expected keys are \\['description', 'example', 'options'\\]";
     };
   };
 

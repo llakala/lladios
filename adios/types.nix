@@ -7,6 +7,7 @@ let
     attrsOf
     function
     listOf
+    new
     optionalAttr
     rename
     string
@@ -66,10 +67,21 @@ let
       example = optionalAttr any;
     };
 
-    option = union [
-      modules.normalOption
-      modules.subOptions
-    ];
+    # to make sure custom error messages are preserved, we don't use types.union
+    # from korora, and instead choose which type to use based on whether the
+    # option contains sub-options
+    option =
+      let
+        verifyNormalOption = modules.normalOption.verify;
+        explainNormalOption = modules.normalOption.explain;
+        verifySubOptions = modules.subOptions.verify;
+        explainSubOptions = modules.subOptions.explain;
+      in
+      new {
+        name = "option";
+        verify = v: if v ? options then verifySubOptions v else verifyNormalOption v;
+        explain = v: if v ? options then explainSubOptions v else explainNormalOption v;
+      };
 
     input =
       (struct "input" {
