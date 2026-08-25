@@ -266,17 +266,46 @@ lib.fix (
 
     union =
       let
-        testUnion = types.union [ types.string ];
+        testUnion = types.union [
+          types.string
+          types.bool
+        ];
       in
       {
-        testValid = {
+        testFirstValid = {
           expr = testUnion.inspect "hello";
+          expected = null;
+        };
+
+        testSecondValid = {
+          expr = testUnion.inspect false;
           expected = null;
         };
 
         testInvalid = {
           expr = testUnion.inspect 1;
-          expected = "in type 'union<string>': value '1' failed the type check";
+          expected = "in type 'union<string,bool>': value '1' failed the type check";
+        };
+      };
+
+    either =
+      let
+        testEither = types.either types.string types.bool;
+      in
+      {
+        testFirst = {
+          expr = testEither.inspect "hello";
+          expected = null;
+        };
+
+        testSecond = {
+          expr = testEither.inspect false;
+          expected = null;
+        };
+
+        testInvalid = {
+          expr = testEither.inspect 1;
+          expected = "in type 'either<string,bool>': value '1' failed the type check";
         };
       };
 
@@ -306,6 +335,30 @@ lib.fix (
         testInvalid = {
           expr = testIntersection.inspect 1;
           expected = "in type 'intersection<struct<1>,struct<2>>': value '1' failed the type check";
+        };
+      };
+
+    both =
+      let
+        testBoth = types.both types.int (
+          types.new {
+            name = "positive";
+            verify = v: v >= 0;
+          }
+        );
+      in
+      {
+        testValid = {
+          expr = testBoth.inspect 5;
+          expected = null;
+        };
+        testInvalid1 = {
+          expr = testBoth.inspect (-1);
+          expected = "in type 'all<int,positive>': value '-1' failed the type check";
+        };
+        testInvalid2 = {
+          expr = testBoth.inspect "no";
+          expected = "in type 'all<int,positive>': value '\"no\"' failed the type check";
         };
       };
 

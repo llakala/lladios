@@ -249,6 +249,23 @@ union<types...>
 : Any of <t>
 
 
+## `types.either`
+
+either<t1,t2>
+
+Like 'union', but without an `any` call. Slight micro-optimization
+for types that are checked very often.
+
+`t1`
+
+: Either t1
+
+
+`t2`
+
+: Or t2
+
+
 ## `types.intersection`
 
 intersection<types...>
@@ -256,6 +273,23 @@ intersection<types...>
 `types`
 
 : All of <t>
+
+
+## `types.both`
+
+both<t1,t2>
+
+Like 'intersection', but without an `all` call. Slight micro-optimization
+for types that are checked very often.
+
+`t1`
+
+: Both t1
+
+
+`t2`
+
+: And t2
 
 
 ## `types.rename`

@@ -460,6 +460,26 @@ fix (self: {
     };
 
   /*
+    either<t1,t2>
+
+    Like 'union', but without an `any` call. Slight micro-optimization
+    for types that are checked very often.
+  */
+  either =
+    # Either t1
+    t1:
+    # Or t2
+    t2:
+    let
+      verify1 = t1.verify;
+      verify2 = t2.verify;
+    in
+    self.new {
+      name = "either<${t1.name},${t2.name}>";
+      verify = v: verify1 v || verify2 v;
+    };
+
+  /*
     intersection<types...>
   */
   intersection =
@@ -474,6 +494,27 @@ fix (self: {
       verify = v: all (verifier: verifier v) verifiers;
       # TODO: custom explain message
     };
+
+  /*
+    both<t1,t2>
+
+    Like 'intersection', but without an `all` call. Slight micro-optimization
+    for types that are checked very often.
+  */
+  both =
+    # Both t1
+    t1:
+    # And t2
+    t2:
+    let
+      verify1 = t1.verify;
+      verify2 = t2.verify;
+    in
+    self.new {
+      name = "all<${t1.name},${t2.name}>";
+      verify = v: verify1 v && verify2 v;
+    };
+
 
   /*
     rename<name, type>
