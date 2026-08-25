@@ -75,7 +75,7 @@ let
           [ ]
       ) (attrNames options)
     );
-  warnings = import ./warnings.nix { inherit warn; };
+  messages = import ./messages.nix { inherit warn; };
 in
 # Self-reference for the result of this file
 tree:
@@ -151,7 +151,7 @@ let
     let
       check =
         if option ? mutatorType then
-          seq warnings.mutatorType option.mutatorType.check
+          seq messages.mutatorTypeWarning option.mutatorType.check
         else
           option.type.check;
     in
@@ -310,7 +310,7 @@ let
               if input ? from then
                 fetchInput self input.from
               else
-                seq warnings.modulePath (
+                seq messages.modulePathWarning (
                   addWarningWithLocation input "path" "deprecated module path" (
                     fetchModuleByPath self.path input.path
                   )
