@@ -7,6 +7,21 @@ let
     head
     length
     ;
+
+  typeOf =
+    let
+      inherit (builtins) typeOf;
+    in
+    v:
+    let
+      vType = typeOf v;
+    in
+    if vType == "lambda" then
+      "function"
+    else if vType == "set" then
+      "attrs"
+    else
+      vType;
 in
 {
   modulePathWarning = warn ''
@@ -37,4 +52,20 @@ in
       else
         "options '${printList missingNames}'"
     }, valid options were '${printList (attrNames options)}'";
+
+  mkBadDefError =
+    path: def:
+    let
+      defType = typeOf def;
+      baseMessage = "in module '${path}': module is of type '${defType}', but Adios modules should be attrsets.";
+    in
+    throw (
+      if defType != "function" then
+        baseMessage
+      else
+        ''
+          ${baseMessage}
+                 hint: since your module is a function, you probably expected it to be called with
+                 'adios' automatically. To do this, use 'adios.lib.importModules' on a directory.''
+    );
 }

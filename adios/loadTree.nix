@@ -367,6 +367,7 @@ let
             callFunction def.impl args;
       };
     in
+    assert isAttrs def || messages.mkBadDefError self.path def;
     self;
 in
 recurse (fetchModuleByFunction (throw "Attempted to access parent of root module, but the root module has no parent!")) ""
