@@ -120,11 +120,11 @@ let
         // {
           # gross - once we've recursed to the appropriate level, we need to
           # actually get the module, but we don't want to disallow modules from
-          # being named certain things.
-          # instead, we store a functor that, when called, gives us the actual
-          # module definition. if anyone names their module __functor, they
-          # deserve what's coming to them.
-          __functor = _: _: module;
+          # being named whatever we choose.
+          # as a least-bad solution, we choose to store the actual module under
+          # __functor. It's not even a function, we're just naming it that
+          # because Nix users should know not to name attributes __functor.
+          __functor = module;
         };
     in
     parent':
@@ -134,10 +134,10 @@ let
       parent = if parent'.path == "/" then root else recurse parent';
     in
     self: inputFetcher:
-    callFunction inputFetcher {
+    (callFunction inputFetcher {
       inherit root parent;
       self = recurse self;
-    } null;
+    }).__functor;
 
   computeMutators =
     {
