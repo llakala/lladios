@@ -57,6 +57,16 @@ mapAttrs testModules {
       expected = true;
     };
 
+    testNonexistentParams = {
+      module = {
+        options.foo.type = types.bool;
+        options.bar.type = types.bool;
+        impl = { options }: builtins.seq options true;
+      };
+      apply = module: module { baz = false; };
+      expectedError.msg = "while calling /: tried to set nonexistent option 'baz', valid options were '\\[bar, foo\\]'";
+    };
+
     testTypecheckFailure = {
       module = {
         options.test = {

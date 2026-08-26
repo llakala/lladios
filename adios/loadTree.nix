@@ -75,7 +75,7 @@ let
           [ ]
       ) (attrNames options)
     );
-  messages = import ./messages.nix { inherit warn; };
+  messages = import ./messages.nix { inherit printList warn; };
 in
 # Self-reference for the result of this file
 tree:
@@ -197,8 +197,15 @@ let
       # why the options had to be computed
       errorContext ? "in",
       # parameters given explicitly in eval/impl stage
-      params ? null,
+      params ? { },
     }:
+    let
+      names = attrNames options;
+    in
+    assert
+      params == { }
+      || removeAttrs params names == { }
+      || messages.mkMissingParamsError self errorContext options params;
     listToAttrs (
       concatMap (
         name:
@@ -272,7 +279,7 @@ let
           ]
         else
           [ ]
-      ) (attrNames options)
+      ) names
     );
 in
 # Directly passed values for options in the eval stage

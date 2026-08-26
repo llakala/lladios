@@ -1,4 +1,13 @@
-{ warn }:
+{ warn, printList }:
+
+let
+  inherit (builtins)
+    attrNames
+    filter
+    head
+    length
+    ;
+in
 {
   modulePathWarning = warn ''
     at least one of your Adios modules used `.path` to specify an input's location in the tree. This
@@ -16,4 +25,16 @@
     See the lladios changelog for rationale and a migration guide:
     https://github.com/llakala/lladios/blob/main/CHANGELOG.md#deprecated-mutatortype
   '' null;
+
+  mkMissingParamsError =
+    self: errorContext: options: params:
+    let
+      missingNames = filter (param: !options ? ${param}) (attrNames params);
+    in
+    throw "${errorContext} ${self.path}: tried to set nonexistent ${
+      if length missingNames == 1 then
+        "option '${head missingNames}'"
+      else
+        "options '${printList missingNames}'"
+    }, valid options were '${printList (attrNames options)}'";
 }
