@@ -312,14 +312,14 @@ let
 
         args = {
           inputs = mapAttrs (
-            _: input:
+            _: inputData:
             (
-              if input ? from then
-                fetchInput self input.from
+              if inputData ? from then
+                fetchInput self inputData.from
               else
                 seq messages.modulePathWarning (
-                  addWarningWithLocation input "path" "deprecated module path" (
-                    fetchModuleByPath self.path input.path
+                  addWarningWithLocation inputData "path" "deprecated module path" (
+                    fetchModuleByPath self.path inputData.path
                   )
                 )
             ).args.options
