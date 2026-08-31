@@ -1,4 +1,4 @@
-# lladios - A Nix module system
+# adios - A Nix module system
 
 ## Note
 
