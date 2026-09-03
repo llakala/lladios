@@ -1,5 +1,6 @@
 # Installation
-To access the `adios` attribute set, use your favorite pinning tool (npins, flakes, tack, etc) and then import the root of this repo. With flakes/tack it may also be more idiomatic to use this repo's `adios` flake output.
+To access the `adios` attribute set, use your favorite pinning tool (npins, flakes, tack, etc) and then import the root
+of this repo. With flakes/tack it may also be more idiomatic to use this repo's `adios` flake output.
 
 ```nix
 # Pinning without any tools (requires manual updates).
@@ -13,7 +14,7 @@ let
       # Replace with the result from `nix-prefetch-url` or the fetch-time error.
       sha256 = "";
     };
-  in 
+  in
     import src;
 in
   # Use adios as needed.
