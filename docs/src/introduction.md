@@ -1,53 +1,68 @@
 # Adios Documentation
 
-> [!NOTE]
-> You are viewing a fork of upstream adios, known as **lladios**. Expect breaking changes, but not without proper error
-> messages.
+> This repository is a fork of upstream Adios. However, it aims to be an _implementation_ of Adios, just more actively
+> maintained. For that reason, even though "lladios" is the repo name, we still call it the Adios module system.
 
 ## What is Adios?
-Adios is a general-use module system for the [nix language](https://nix.dev/). Its largest goal is to be a fast, simple,
-and portable alternative to the module system NixOS uses, `pkgs.lib.evalModules`, which is referred to as 'the NixOS
-module system' throughout this documentation.
+Adios is a general-use module system for the [nix language](https://nix.dev/). Its goal is to be a fast, simple, and
+portable alternative to `lib.evalModules` (the module system used by NixOS and home-manager). `lib.evalModules` may be
+referred to as 'the NixOS module system' throughout this documentation.
 
 Where you might use:
 
-- a `pkgs.callPackage` set,
-- `pkgs.lib.evalModules` for a function,
-- a function with a lot of configurability (ex. `{ foo ? true, bar ? false }: ...`),
+- a function with a lot of configurability (ex. `{ foo ? true, bar ? false }: ...`)
+- a `pkgs.callPackage` set
+- A small/medium `lib.evalModules` set
 
-adios is able to provide a better interface with a low impact on performance.
+Adios aims to be a powerful alternative, with minimal performance overhead.
 
-## *Why* is adios?
-The NixOS module system is a large part of why evaluating a NixOS config, even a very minimal one, takes so much time.
+## *Why* is `lib.evalModules` slow?
 
-Adios solves a lot of the NixOS module system's issues. Here are the biggest ones along with how adios is able to solve
-them:
+`lib.evalModules` is very simple at a high level. Given a set of modules, each module can set any other module's
+options, thereby mutating it. This is a 'global mutable namespace' - and it's a terrible idea for performance.
 
-### Global Mutable Namespace
-The NixOS module system uses a 'global mutable namespace.' This means any module can affect the *entire* output of the
-module system. Every module must be evaluated in order to get the final result, because *any* of those modules could be
-changing the result completely. It also offers less options when importing other modules because those imports cannot
-rely on *any* of the module system's state without causing an 'infinite recursion' error.
+Let's look at the `environment.systemPackages` option. To determine the value of this option, we must:
+1. Find all the places where this option is mutated
+2. Merge each definition together
 
-By forcing every module to specify exactly what they need as an input and only letting modules control their own
-outputs, adios keeps the importing of modules a lazy process.
+But how do we find those locations? Well, it's simple - we just have to iterate through every other module. But this
+means a module set scales with the number of modules in the set - _not_ the number of modules you actually use.
 
-### Resource Overhead
-Because of its non-lazy importing of modules, the NixOS module system takes more and more time to evaluate for every
-module that is added. At the scale of NixOS, this results in slow evaluation and high resource usage; it can be
-impossible to evaluate even a very minimal config on a machine with few resources. The same applies for everything else
-that uses this module system: Home-manager, for example, increases evaluation resource usage and time by just being
-imported, even if you don't use it at all in your configuration.
+At first, it looks like "enable options" solve this - just only evaluate a module if it's enabled! But enable options
+are just a common practice, and not enforced by the module system. The whole point of a global mutable namespace is that
+modules can mutate whenever they want. If we want something better, we'll have to change our model.
 
-Adios takes full advantage of nix's laziness and optimizes for memoisation, making it scale much better at high module
-counts and where many modules go unused.
+## Why is Adios fast?
 
-### Error Messages
-Error messages from `evalModules` lack the context needed to be relevant and usable. Instead of being helpful, they are
-(somewhat infamously) difficult to parse, especially for users new to nix. Adios' errors are simple, clear, and
-readable, and give you the information needed to fix what's breaking.
+Adios has a completely different model. Rather than working like `lib.evalModules`, where you have a bunch of modules
+that define options and mutate _other_ options, each Adios module is more like a function. Declare some options for the
+module, "call" the module, and get some kind of output.
 
-### Portability
-Because NixOS modules rely on every other module in order to work (and in an undeclared fashion), they aren't reusable
-outside of a NixOS context. Adios modules depend only on what they need and are applicable across many situations;
-that's what makes them 'modular' in the first place.
+Here's an example of an Adios module:
+
+```nix
+{ types, ... }:
+{
+  options = {
+    num1 = {
+      type = types.int;
+      default = 10;
+    };
+    num2 = {
+      type = types.int;
+    };
+  };
+
+  impl = { options }: options.num1 + options.num2;
+}
+```
+
+If we "call" this module:
+```nix
+module { num2 = 3; }
+```
+
+Then it provides `13` as an output.
+
+This may seem much more limited than the NixOS module system at first. But if you read the [tutorial](TODO LINK), you
+may start to see the power of this model.
