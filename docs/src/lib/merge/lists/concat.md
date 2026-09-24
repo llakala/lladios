@@ -4,13 +4,23 @@
 
 This function takes the raw data from mutators each providing a list, like this:
 ```nix
-{{#include mutatorsBefore.nix}}
+{
+  "/foo" = [ pkgs.hello ];
+  "/bar" = [
+    pkgs.git
+    pkgs.cowsay
+  ];
+}
 ```
 
 And turns it into:
 
 ```nix
-{{#include mutatorsAfter.nix}}
+[
+  pkgs.git
+  pkgs.cowsay
+  pkgs.hello
+]
 ```
 
 The order might be different than you expected. `merge.lists.concat` sorts lexicographically based on the mutator path.
@@ -27,5 +37,18 @@ This should be used when:
 For example:
 
 ```nix
-{{#include example.nix}}
+# modules/environment.nix
+{ adios }:
+let
+  inherit (adios) types;
+in
+{
+  options = {
+    systemPackages = {
+      type = types.listOf types.derivation;
+      mutatorType = types.listOf types.derivation;
+      mergeFunc = adios.lib.merge.lists.concat;
+    };
+  };
+}
 ```

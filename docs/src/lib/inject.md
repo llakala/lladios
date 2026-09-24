@@ -60,11 +60,11 @@ Just like `//`, it also allows overriding an existing attribute's value.
 
 ```nix
 adios.lib.inject [
-  { unchanged-value = true; nested.overriden-value = -1; }
-  { nested.overriden-value = true; }
+  { unchanged-value = true; nested.overridden-value = -1; }
+  { nested.overridden-value = true; }
 ]
 # =>
-{ unchanged-value = true; nested.overriden-value = true; }
+{ unchanged-value = true; nested.overridden-value = true; }
 ```
 
 ## Simple example
