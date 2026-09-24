@@ -202,8 +202,6 @@ let
         # it needs access to the newest version of args, not the cached one
         args' = if self.path == mutatorPath then args else resolution.args;
       in
-      # TODO: decide whether to error here, if a module didn't
-      # mutate when it was supposed to
       if resolution ? mutations.${self.path}.${name} then
         [
           (addErrorContext
@@ -212,7 +210,9 @@ let
           )
         ]
       else
-        [ ]
+        warn
+          "'${self.path}': mutator '${resolution.path}' of option '${name}' was expected to provide a mutation. hint: did you make a typo?"
+          [ ]
     ) option.mutators
     # If the mutators list is nonempty, have the value passed in eval/impl
     # stage go through the mergeFunc, under the current module's name.
@@ -367,8 +367,9 @@ let
         );
         path = if path == "" then "/" else path;
 
-        ${if def ? types then "types" else null} =
-          addErrorContext "${errorPrefix}: in attribute 'types'" (checkTypedefs def.types);
+        ${if def ? types then "types" else null} = addErrorContext "${errorPrefix}: in attribute 'types'" (
+          checkTypedefs def.types
+        );
         ${if def ? mutations then "mutations" else null} =
           checkMutations "${errorPrefix}: in attribute 'mutations'" def.mutations;
         ${if def ? lib then "lib" else null} = addErrorContext "${errorPrefix}: in attribute 'lib'" (

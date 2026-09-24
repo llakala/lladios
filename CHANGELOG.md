@@ -1,5 +1,14 @@
 Any new features or breaking changes will be listed here.
 
+# Warn on missing mutations
+
+Modules listed in an option's `mutators` which do not have a corresponding `.mutations."/option-module".option-name` now warn when the option is evaluated.
+Missing mutations may be caused by typos.
+
+To fix this warning, double check that the modules listed in every option with `mutators` have corresponding `mutations`.
+If you have an option called `option-name` in a module called `module-a` with `.mutators = [ "/module-b" ];`, then `module-b` should set `.mutations."/module-a".option-name = ...`;
+Otherwise, remove `"/module-b"` from `.mutators`.
+
 # `assertions` added
 
 Adios now features first-class assertions. These can be defined as such:
