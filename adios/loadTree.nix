@@ -141,7 +141,7 @@ let
         )
       );
 
-  fetchModuleByFunction =
+  fetchInputOptions =
     let
       root = recurse tree;
       recurse =
@@ -152,11 +152,10 @@ let
           # actually get the module, but we don't want to disallow modules from
           # being named whatever we choose.
           # as a least-bad solution, we choose to store the actual module under
-          # __functor. It's not even a function, we're just naming it that
-          # because Nix users should know not to name attributes __functor.
-          __functor = module;
+          # a name that's unlikely to be set
+          __fetchedAdiosModule = module;
         };
-      cachedParentFargs = {
+      parentFargs = {
         parent = false;
       };
     in
@@ -166,16 +165,28 @@ let
         parent = recurse parent;
       };
     in
-    self: inputFetcher:
-    # optimize for the common case where functionArgs is just `{ parent }:`
-    if functionArgs inputFetcher == cachedParentFargs then
-      (inputFetcher parentArgs).__functor
-    else
-      (callFunctionWith {
+    self:
+    let
+      callInput = callFunctionWith {
         inherit root;
         parent = parentArgs.parent;
         self = recurse self;
-      } inputFetcher).__functor;
+      };
+    in
+    _:
+    {
+      from ? null,
+      ...
+    }@inputParams:
+    if from == null then
+      seq messages.modulePathWarning (
+        warn "deprecated module path in ${self.path}" (fetchModuleByPath self.path inputParams.path)
+      )
+    else if functionArgs from == parentFargs then
+      # optimize for the common case where functionArgs is just `{ parent }:`
+      (from parentArgs).__fetchedAdiosModule.args.options
+    else
+      (callInput from).__fetchedAdiosModule.args.options;
 
   computeMutators =
     {
@@ -354,8 +365,8 @@ in
 evalParams:
 let
   recurse =
-    # fetchModuleByFunction partially applied on `parent`
-    fetchInput:
+    # fetchInput' partially applied on `parent`
+    fetchInputOptions':
     # path to the parent module
     parentPath:
     # the current module's name
@@ -389,17 +400,7 @@ let
 
       # compute args before running assertions to prevent infrec
       args = {
-        inputs = mapAttrs (
-          _: inputData:
-          (
-            if inputData ? from then
-              fetchInput self inputData.from
-            else
-              seq messages.modulePathWarning (
-                warn "deprecated module path in ${self.path}" (fetchModuleByPath self.path inputData.path)
-              )
-          ).args.options
-        ) self.inputs;
+        inputs = mapAttrs (fetchInputOptions' self) self.inputs;
         options =
           computeOptions {
             inherit self args;
@@ -416,9 +417,9 @@ let
         inputs = checkInputs "${errorPrefix}: in attribute 'inputs'" (def.inputs or { });
         path = "${parentPath}/${moduleName}";
         modules = mapAttrs (
-          # partially apply the fetch on the current module, which will be each
-          # child's parent
-          recurse (fetchModuleByFunction self) (if self.path == "/" then "" else self.path)
+          # partially apply the fetchInput' call, so children have parent
+          # already applied
+          recurse (fetchInputOptions self) (if self.path == "/" then "" else self.path)
         ) (def.modules or { });
 
         ${if def ? types then "types" else null} = addErrorContext "${errorPrefix}: in attribute 'types'" (
@@ -477,6 +478,6 @@ let
     assert isAttrs def || messages.mkBadDefError self.path def;
     self;
 in
-recurse (fetchModuleByFunction (
+recurse (fetchInputOptions (
   throw "Attempted to access parent of root module, but the root module has no parent!"
 )) "" ""
