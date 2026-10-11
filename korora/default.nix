@@ -712,7 +712,7 @@ fix (self: {
           v:
           isAttrs v
           # if attribute is a member, it passes
-          && all (name: verifiers ? ${name} && verifiers.${name} v.${name}) (attrNames v)
+          && all (name: !verifiers ? ${name} || verifiers.${name} v.${name}) (attrNames v)
           # custom verifier passes
           && (noCustomVerify || verify v)
         else
