@@ -160,12 +160,11 @@ let
         parent = false;
       };
     in
-    parent':
+    parent:
     let
-      # be friendly to partial application, so a single parent can be reused
-      # while recursing
-      parent = if parent'.path == "/" then root else recurse parent';
-      parentArgs = { inherit parent; };
+      parentArgs = {
+        parent = recurse parent;
+      };
     in
     self: inputFetcher:
     # optimize for the common case where functionArgs is just `{ parent }:`
@@ -173,7 +172,8 @@ let
       (inputFetcher parentArgs).__functor
     else
       (callFunctionWith {
-        inherit root parent;
+        inherit root;
+        parent = parentArgs.parent;
         self = recurse self;
       } inputFetcher).__functor;
 
@@ -354,7 +354,14 @@ in
 evalParams:
 let
   recurse =
-    fetchInput: path: def:
+    # fetchModuleByFunction partially applied on `parent`
+    fetchInput:
+    # path to the parent module
+    parentPath:
+    # the current module's name
+    moduleName:
+    # unchecked module definition
+    def:
     let
       errorPrefix = "in definition of '${self.path}'";
       currentFunctor = {
@@ -407,10 +414,12 @@ let
       self = {
         options = checkOptions "${errorPrefix}: in attribute 'options'" (def.options or { });
         inputs = checkInputs "${errorPrefix}: in attribute 'inputs'" (def.inputs or { });
-        modules = mapAttrs (name: recurse (fetchModuleByFunction self) "${path}/${name}") (
-          def.modules or { }
-        );
-        path = if path == "" then "/" else path;
+        path = "${parentPath}/${moduleName}";
+        modules = mapAttrs (
+          # partially apply the fetch on the current module, which will be each
+          # child's parent
+          recurse (fetchModuleByFunction self) (if self.path == "/" then "" else self.path)
+        ) (def.modules or { });
 
         ${if def ? types then "types" else null} = addErrorContext "${errorPrefix}: in attribute 'types'" (
           checkTypedefs def.types
@@ -468,4 +477,6 @@ let
     assert isAttrs def || messages.mkBadDefError self.path def;
     self;
 in
-recurse (fetchModuleByFunction (throw "Attempted to access parent of root module, but the root module has no parent!")) ""
+recurse (fetchModuleByFunction (
+  throw "Attempted to access parent of root module, but the root module has no parent!"
+)) "" ""
