@@ -761,6 +761,8 @@ fix (self: {
                   explanation
                 else if !unknown && (removeAttrs v names != { }) then
                   "keys [${joinKeys (attrNames (removeAttrs v names))}] are unrecognized, expected keys are [${joinKeys names}]"
+                else if explain == null then
+                  "failed to match custom verification function"
                 else
                   explain v
             );

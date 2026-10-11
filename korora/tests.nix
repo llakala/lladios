@@ -406,7 +406,7 @@ lib.fix (
           foo = types.string;
         };
 
-        testStruct2 =
+        testStructCustomVerify =
           (types.struct "test2" {
             x = types.int;
             y = types.int;
@@ -416,9 +416,16 @@ lib.fix (
               explain = v: "VERBOTEN";
             };
 
+        testStructCustomVerifyNoExplain = testStructCustomVerify.override {
+          verify = v: v.x + v.y != 2;
+        };
+
         testStructNonTotal = testStruct.override { total = false; };
         testStructUnknown = testStruct.override { unknown = true; };
-        testStructNonTotalUnknown = testStruct2.override { total = false; unknown = true; };
+        testStructNonTotalUnknown = testStructCustomVerify.override {
+          total = false;
+          unknown = true;
+        };
       in
       {
         testValid = {
@@ -447,11 +454,19 @@ lib.fix (
         };
 
         testExtraInvariantCheck = {
-          expr = testStruct2.inspect {
+          expr = testStructCustomVerify.inspect {
             x = 1;
             y = 1;
           };
           expected = "in struct 'test2': VERBOTEN";
+        };
+
+        testExtraInvariantMissingExplainCheck = {
+          expr = testStructCustomVerifyNoExplain.inspect {
+            x = 1;
+            y = 1;
+          };
+          expected = "in struct 'test2': failed to match custom verification function";
         };
 
         testUnknownAllowed = {
