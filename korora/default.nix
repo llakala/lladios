@@ -810,7 +810,13 @@ fix (self: {
     let
       name = "tuple<${concatStringsSep "," (map (t: t.name) types)}>";
       len = length types;
-      verifiers = genList (i: v: (elemAt types i).verify (elemAt v i)) len;
+      verifiers = genList (
+        i:
+        let
+          verify = (elemAt types i).verify;
+        in
+        v: verify (elemAt v i)
+      ) len;
     in
     self.new {
       inherit name;
