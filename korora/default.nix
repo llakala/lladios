@@ -659,8 +659,6 @@ fix (self: {
       verify = v: v ? requiredAttribute;
     }
     ```
-
-    #### Function signature
   */
   struct =
     let
@@ -740,31 +738,30 @@ fix (self: {
           verify = (if total then verifyTotalStruct else verifyNonTotalStruct) types total unknown verify;
           explain =
             v:
+            let
+              names = attrNames types;
+              explanation = validateAll (
+                name:
+                if !v ? ${name} then
+                  if !total || (types.${name}.__optional or false) then null else "missing member '${name}'"
+                else if !types.${name}.verify v.${name} then
+                  "in member '${name}': ${types.${name}.explain v.${name}}"
+                else
+                  null
+              ) names;
+            in
             "in struct '${name}': "
             + (
               if !isAttrs v then
                 notOfType "attrs" v
+              else if explanation != null then
+                explanation
+              else if !unknown && (removeAttrs v names != { }) then
+                "keys [${joinKeys (attrNames (removeAttrs v names))}] are unrecognized, expected keys are [${joinKeys names}]"
+              else if explain == null then
+                "failed to match custom verification function"
               else
-                let
-                  names = attrNames types;
-                  explanation = validateAll (
-                    name:
-                    if !v ? ${name} then
-                      if !total || (types.${name}.__optional or false) then null else "missing member '${name}'"
-                    else if !types.${name}.verify v.${name} then
-                      "in member '${name}': ${types.${name}.explain v.${name}}"
-                    else
-                      null
-                  ) names;
-                in
-                if explanation != null then
-                  explanation
-                else if !unknown && (removeAttrs v names != { }) then
-                  "keys [${joinKeys (attrNames (removeAttrs v names))}] are unrecognized, expected keys are [${joinKeys names}]"
-                else if explain == null then
-                  "failed to match custom verification function"
-                else
-                  explain v
+                explain v
             );
         }
         // {
