@@ -365,7 +365,7 @@ in
 evalParams:
 let
   recurse =
-    # fetchInput' partially applied on `parent`
+    # fetchInputOptions partially applied on `parent`
     fetchInputOptions':
     # path to the parent module
     parentPath:
@@ -417,8 +417,8 @@ let
         inputs = checkInputs "${errorPrefix}: in attribute 'inputs'" (def.inputs or { });
         path = "${parentPath}/${moduleName}";
         modules = mapAttrs (
-          # partially apply the fetchInput' call, so children have parent
-          # already applied
+          # apply the equivalent of `fetchInputOptions parent` here, so the
+          # partial function is cached for all children
           recurse (fetchInputOptions self) (if self.path == "/" then "" else self.path)
         ) (def.modules or { });
 
