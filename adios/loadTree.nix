@@ -174,10 +174,7 @@ let
       };
     in
     _:
-    {
-      from ? null,
-      ...
-    }@inputParams:
+    { from, ... }@inputParams:
     if from == null then
       seq messages.modulePathWarning (
         warn "deprecated module path in ${self.path}" (fetchModuleByPath self.path inputParams.path)
