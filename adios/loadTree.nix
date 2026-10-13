@@ -184,11 +184,11 @@ let
     else
       (callInput from).__fetchedAdiosModule;
 
-  computeMutators =
+  computeMutators' =
+    errorPrefix:
     {
       self,
       args,
-      errorPrefix,
       name,
       option,
       params,
@@ -245,7 +245,12 @@ let
     ];
 
   # Compute options from defaults & provided args
-  computeOptions =
+  computeOptions' =
+    # why the options had to be computed
+    errorPrefix:
+    let
+      computeMutators = computeMutators' errorPrefix;
+    in
     {
       # The current module
       self,
@@ -253,8 +258,6 @@ let
       args,
       # Defined options
       options ? self.options,
-      # why the options had to be computed
-      errorPrefix ? "in",
       # parameters given explicitly in eval/impl stage
       params ? { },
       # calls the given promise (pre-applied with `args`)
@@ -288,7 +291,6 @@ let
                       mutators = computeMutators {
                         inherit
                           args
-                          errorPrefix
                           name
                           option
                           params
@@ -305,11 +307,10 @@ let
         # Compute nested options
         else if option ? options then
           let
-            value = computeOptions {
+            value = computeOptions' errorPrefix {
               inherit
                 args
                 callPromise
-                errorPrefix
                 self
                 ;
               inherit (option) options;
@@ -356,6 +357,8 @@ let
           [ ]
       ) names
     );
+  computeCachedOptions = computeOptions' "in";
+  recomputeOptions = computeOptions' "while calling";
 in
 # Directly passed values for options in the eval stage
 evalParams:
@@ -420,7 +423,7 @@ let
         # uses self.args to also run assertions
         ${if self ? result then "result" else null} = self.result self.args;
         options =
-          computeOptions {
+          computeCachedOptions {
             inherit self args callPromise;
             ${if evalParams ? ${self.path} then "params" else null} = evalParams.${self.path};
           }
@@ -511,10 +514,9 @@ let
               ) inputArgs;
               ${if self ? result then "result" else null} = self.result newArgs;
               options =
-                computeOptions {
+                recomputeOptions {
                   inherit self callPromise;
                   args = newArgs;
-                  errorPrefix = "while calling";
                   params =
                     if evalParams ? ${self.path} then
                       mergeOptionsUnchecked self.options evalParams.${self.path} params
