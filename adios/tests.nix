@@ -102,7 +102,7 @@ mapAttrs testModules {
       module = {
         options.some-option.options.some-suboption.type = types.int;
         inputs.some-input.from = { self }: self.some-child;
-        modules.some-child = { };
+        modules.some-child.result = 5;
         types = {
           type1 = types.int;
           nested.type2 = types.string;
@@ -123,17 +123,18 @@ mapAttrs testModules {
     testSelf = {
       module = {
         inputs.test.from = { self }: self.test;
+        inputs.test.options.some-option = 2;
         modules.test = {
-          options.option = {
+          options.some-option = {
             default = 1;
             type = types.int;
           };
           result = true;
         };
         result = promise (
-          { inputs }:
-          assert inputs.test.option == 1;
-          inputs.test { }
+          { inputs, results }:
+          assert inputs.test.some-option == 2;
+          results.test
         );
       };
       expected = true;
@@ -141,14 +142,24 @@ mapAttrs testModules {
 
     testParent = {
       modules = {
-        mod1.result = true;
-        mod2.result = true;
+        mod1 = {
+          options.favorite-number = {
+            type = types.int;
+            default = 10;
+          };
+          result = true;
+        };
+        mod2 = {
+          options.favorite-number.type = types.int;
+          result = promise ({ options }: options ? favorite-number);
+        };
         test = {
           inputs = {
             mod1.from = { parent }: parent.mod1;
             mod2.from = { parent }: parent.mod2;
+            mod2.options.favorite-number = promise ({ inputs }: inputs.mod1.favorite-number);
           };
-          result = promise ({ inputs }: (inputs.mod1 { }) && (inputs.mod2 { }));
+          result = promise ({ results }: results.mod1 && results.mod2);
         };
       };
       apply = tree: tree.modules.test { };
@@ -159,7 +170,7 @@ mapAttrs testModules {
       module = {
         inputs.test.from = { root }: root.test;
         modules.test.result = true;
-        result = promise ({ inputs }: inputs.test { });
+        result = promise ({ results }: results.test);
       };
       expected = true;
     };
@@ -176,7 +187,7 @@ mapAttrs testModules {
           }:
           root.test;
         modules.test.result = true;
-        result = promise ({ inputs }: inputs.test { });
+        result = promise ({ results }: results.test);
       };
       expected = true;
     };
@@ -189,19 +200,19 @@ mapAttrs testModules {
       expectedError.msg = "Attempted to access parent of root module, but the root module has no parent!";
     };
 
-    # calling `options {}` calls the module, just like calling `inputs.foo {}`
-    # would
-    testCallingOwnImpl = {
+    testOwnResult = {
       module = {
-        options = {
-          ranOnce = {
-            type = types.bool;
-            default = false;
-          };
-        };
-        result = promise ({ options }: if options.ranOnce then true else options { ranOnce = true; });
+        result = promise (
+          { result }: {
+            a = 0;
+            b = result.a + 1;
+          }
+        );
       };
-      expected = true;
+      expected = {
+        a = 0;
+        b = 1;
+      };
     };
   };
 

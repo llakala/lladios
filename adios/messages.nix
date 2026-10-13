@@ -70,6 +70,12 @@ in
     See the lladios changelog for rationale and a migration guide:
     https://github.com/llakala/lladios/blob/main/CHANGELOG.md#deprecated-mutatortype'' null;
 
+  calledModuleWarning = trace ''
+    Calling modules directly within an Adios tree has been deprecated.
+    Instead, the options for an input should be specified inside `inputs.$name.options`. The result is then stored in `results.$name`.
+    See the lladios changelog for more info:
+    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#new-format-for-calling-options'' null;
+
   mkMissingParamsError =
     self: errorContext: options: params:
     let

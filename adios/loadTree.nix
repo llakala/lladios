@@ -50,13 +50,13 @@ let
 
   # Lazy type check an attrset
   checkModuleAttributes =
-    check: errorPrefix: attrs:
+    check: context: attrs:
     if isAttrs attrs then
       mapAttrs (
-        name: value: addErrorContext errorPrefix (addErrorContext "in attribute '${name}'" (check value))
+        name: value: addErrorContext context (addErrorContext "in attribute '${name}'" (check value))
       ) attrs
     else
-      addErrorContext errorPrefix (throw (types.attrs.explain attrs));
+      addErrorContext context (throw (types.attrs.explain attrs));
 
   checkOptions = checkModuleAttributes types.modules.option.check;
   checkInputs = checkModuleAttributes types.modules.input.check;
@@ -64,7 +64,6 @@ let
   checkTypedefs = types.modules.types.check;
   checkLib = types.modules.lib.check;
   checkAssertions = types.modules.assertions.check;
-  checkImpl = types.modules.impl.check;
 
   # NOTE: assertions are currently run upon trying to access `args`, not
   # `args.options`. This means even if only `args.inputs` are accessed,
@@ -141,7 +140,7 @@ let
         )
       );
 
-  fetchInputOptions =
+  fetchInput =
     let
       root = recurse tree;
       recurse =
@@ -181,9 +180,9 @@ let
       )
     else if functionArgs from == parentFargs then
       # optimize for the common case where functionArgs is just `{ parent }:`
-      (from parentArgs).__fetchedAdiosModule.args.options
+      (from parentArgs).__fetchedAdiosModule
     else
-      (callInput from).__fetchedAdiosModule.args.options;
+      (callInput from).__fetchedAdiosModule;
 
   computeMutators =
     {
@@ -362,8 +361,8 @@ in
 evalParams:
 let
   recurse =
-    # fetchInputOptions partially applied on `parent`
-    fetchInputOptions':
+    # fetchInput partially applied on `parent`
+    fetchInput':
     # path to the parent module
     parentPath:
     # the current module's name
@@ -373,39 +372,58 @@ let
     let
       errorPrefix = "in definition of '${self.path}'";
       currentFunctor = {
-        ${if self ? __functor then "__functor" else null} = self.__functor;
+        ${if self ? result then "__functor" else null} =
+          _: v: seq messages.calledModuleWarning (warn "tried to call module '${self.path}'" (self v));
       };
 
-      callResultWith =
-        if def ? impl then
-          (
-            v:
-            if def ? result then
-              seq messages.implAndResultWarning (warn "impl AND result in ${self.path}" v)
-            else
-              seq messages.implOnlyWarning (warn "impl in ${self.path}" v)
-          )
-            (callCachedFunction def.impl)
-        else if def.result.__adiosPromise or false then
-          callCachedPromise def.result
-        else
-          _: def.result;
+      callPromise = callPromiseWith args;
 
-      # cache the equivalent of calling `module {}`
-      # uses self.args to also run assertions
-      cachedResult = callResultWith self.args;
+      inputModules = mapAttrs (fetchInput' self) self.inputs;
+      # if inputs.${name} has no custom options, reuse the input's cached args
+      # if we do specify non-empty options, recompute!
+      inputArgs = mapAttrs (
+        name:
+        {
+          options ? { },
+          ...
+        }:
+        if options == { } then
+          inputModules.${name}.args
+        else
+          inputModules.${name}.recomputeArgs (
+            if options.__adiosPromise or false then callPromise options else options
+          )
+      ) self.inputs;
 
       # compute args before running assertions to prevent infrec
       args = {
-        inputs = mapAttrs (fetchInputOptions' self) self.inputs;
+        inputs = mapAttrs (
+          name: args:
+          if !args ? result then
+            args.options
+          else
+            args.options
+            // {
+              # improves the error message by showing where it was called
+              __functor =
+                _: v:
+                seq messages.calledModuleWarning (
+                  warn "module '${self.path}' tried to call '${inputModules.${name}.path}'" (inputModules.${name} v)
+                );
+            }
+        ) inputArgs;
+        results = mapAttrs (
+          name: args:
+          args.result
+            or (throw "module '${self.path}' tried to access results.${name}, but input module '${inputModules.${name}.path}' has no result")
+        ) inputArgs;
+        # uses self.args to also run assertions
+        ${if self ? result then "result" else null} = self.result self.args;
         options =
           computeOptions {
-            inherit self args;
-            callPromise = callPromiseWith args;
+            inherit self args callPromise;
             ${if evalParams ? ${self.path} then "params" else null} = evalParams.${self.path};
           }
-          # If the current module has an impl, include it in the computed args,
-          # so the module can be called inside the tree
           // currentFunctor;
       };
 
@@ -414,10 +432,12 @@ let
         inputs = checkInputs "${errorPrefix}: in attribute 'inputs'" (def.inputs or { });
         path = "${parentPath}/${moduleName}";
         modules = mapAttrs (
-          # apply the equivalent of `fetchInputOptions parent` here, so the
-          # partial function is cached for all children
-          recurse (fetchInputOptions self) (if self.path == "/" then "" else self.path)
+          # apply the equivalent of `fetchInput parent` here, so the partial
+          # function is cached for all children
+          recurse (fetchInput self) (if self.path == "/" then "" else self.path)
         ) (def.modules or { });
+        args =
+          if !self ? assertions then args else runAssertionsAndDefine (callFunctionWith args) self args;
 
         ${if def ? types then "types" else null} = addErrorContext "${errorPrefix}: in attribute 'types'" (
           checkTypedefs def.types
@@ -427,54 +447,103 @@ let
         ${if def ? lib then "lib" else null} = addErrorContext "${errorPrefix}: in attribute 'lib'" (
           checkLib def.lib
         );
-        ${if def ? impl then "impl" else null} = addErrorContext "${errorPrefix}: in attribute 'impl'" (
-          checkImpl def.impl
-        );
-        ${if def ? result then "result" else null} = def.result;
         ${if def ? assertions && def.assertions != [ ] then "assertions" else null} =
           addErrorContext "${errorPrefix}: in attribute 'assertions'" (checkAssertions def.assertions);
 
-        args =
-          if !self ? assertions then args else runAssertionsAndDefine (callFunctionWith args) self args;
+        # calling this with some args fixpoint returns the module's result
+        ${if def ? result || def ? impl then "result" else null} =
+          if def ? impl then
+            if def ? result then
+              seq messages.implAndResultWarning (
+                warn "impl AND result in ${self.path}" (callCachedFunction def.impl)
+              )
+            else
+              seq messages.implOnlyWarning (warn "impl in ${self.path}" (callCachedFunction def.impl))
+          else if def.result.__adiosPromise or false then
+            callCachedPromise def.result
+          else
+            _: def.result;
 
+        # calling this with some params computes a new `args` fixpoint
+        recomputeArgs =
+          params:
+          let
+            callPromise = callPromiseWith newArgs;
+            # if inputs.${name}.options is non-empty, recompute each input's
+            # args, since if inputs.${name} was a promise, it could return a new
+            # value
+            # we could reuse the previous inputArgs for non-promises, but that'd
+            # force the default args to always be computed, which is worse than
+            # only recomputing unnecessarily on non-promise inputs.${name}.options
+            inputArgs = mapAttrs (
+              name:
+              {
+                options ? { },
+                ...
+              }:
+              if options == { } then
+                inputModules.${name}.args
+              else
+                inputModules.${name}.recomputeArgs (
+                  if options.__adiosPromise or false then callPromise options else options
+                )
+            ) self.inputs;
+            newArgs = {
+              inputs = mapAttrs (
+                name: args:
+                if !args ? result then
+                  args.options
+                else
+                  args.options
+                  // {
+                    # improves the error message by showing where it was called
+                    __functor =
+                      _: v:
+                      seq messages.calledModuleWarning (
+                        warn "module '${self.path}' tried to call '${inputModules.${name}.path}'" (inputModules.${name} v)
+                      );
+                  }
+              ) inputArgs;
+              results = mapAttrs (
+                name: args:
+                args.result
+                  or (throw "module '${self.path}' tried to access 'results.${name}', but input module '${inputModules.${name}.path}' has no result")
+              ) inputArgs;
+              ${if self ? result then "result" else null} = self.result newArgs;
+              options =
+                computeOptions {
+                  inherit self callPromise;
+                  args = newArgs;
+                  errorPrefix = "while calling";
+                  params =
+                    if evalParams ? ${self.path} then
+                      mergeOptionsUnchecked self.options evalParams.${self.path} params
+                    else
+                      params;
+                }
+                // currentFunctor;
+            };
+          in
+          if !self ? assertions then
+            newArgs
+          else
+            runAssertionsAndCall (callFunctionWith newArgs) self newArgs;
+
+        # given some set of params, compute a new args fixpoint, then call
+        # self.result with those args
         ${if def ? result || def ? impl then "__functor" else null} =
           _: implParams:
           if implParams == { } then
             # Reuse existing args if impl isn't being passed anything new
-            cachedResult
+            self.args.result
           else
-            let
-              # recompute args fixpoint with the passed params
-              recomputedArgs = {
-                # inherit args, not self.args, so assertions are only computed
-                # once
-                inherit (args) inputs;
-                options =
-                  computeOptions {
-                    inherit self;
-                    args = recomputedArgs;
-                    callPromise = callPromiseWith recomputedArgs;
-                    errorPrefix = "while calling";
-                    params =
-                      if evalParams ? ${self.path} then
-                        mergeOptionsUnchecked self.options evalParams.${self.path} implParams
-                      else
-                        implParams;
-                  }
-                  # Current module necessarily defines a functor - include
-                  # it in the computed args
-                  // currentFunctor;
-              };
-            in
-            if !self ? assertions then
-              callResultWith recomputedArgs
-            else
-              runAssertionsAndCall (callFunctionWith recomputedArgs) self (callResultWith recomputedArgs);
+            (self.recomputeArgs implParams).result;
+
       };
     in
     assert isAttrs def || messages.mkBadDefError self.path def;
     self;
 in
-recurse (fetchInputOptions (
+recurse (fetchInput (
   throw "Attempted to access parent of root module, but the root module has no parent!"
 )) "" ""
