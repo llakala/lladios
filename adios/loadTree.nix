@@ -24,8 +24,6 @@ let
 
   warn = builtins.warn or builtins.trace;
 
-  optionals = cond: list: if cond then list else [ ];
-
   # call a function/promise with only its supported attributes
   # we call a bunch of functions with the same args, and re-call one function with
   # lots of different args. partially apply for both cases!
@@ -236,13 +234,18 @@ let
     ) option.mutators
     # If the mutators list is nonempty, have the value passed in eval/impl
     # stage go through the mergeFunc, under the current module's name.
-    ++ optionals (params ? ${name}) [
-      # TODO: improve this error message to make it clearer what "outside
-      # mutator" is
-      (addErrorContext "${errorPrefix} '${self.path}': in outside mutator of option '${name}'" (
-        check params.${name}
-      ))
-    ];
+    ++ (
+      if params ? ${name} then
+        [
+          # TODO: improve this error message to make it clearer what "outside
+          # mutator" is
+          (addErrorContext "${errorPrefix} '${self.path}': in outside mutator of option '${name}'" (
+            check params.${name}
+          ))
+        ]
+      else
+        [ ]
+    );
 
   # Compute options from defaults & provided args
   computeOptions' =
