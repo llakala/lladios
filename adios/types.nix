@@ -20,8 +20,6 @@ let
   modules = {
     types = attrsOf (either type (rename "subtypedef" modules.types));
 
-    impl = function;
-
     normalOption =
       (struct "option" {
         inherit type;
@@ -80,6 +78,7 @@ let
           name = "pathstring";
           verify = isString;
         };
+        options = attrs;
         from = korora.new {
           name = "from";
           verify = isFunction;

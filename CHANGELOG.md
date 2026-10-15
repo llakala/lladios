@@ -1,5 +1,69 @@
 Any new features or breaking changes will be listed here.
 
+# New format for calling inputs
+
+Calling inputs directly (like `inputs.foo {}`) within a module tree is now deprecated, in favor of specifying the
+options for an input as raw data.
+
+Where you would previously call an input like so:
+```nix
+{
+  inputs.foo.from = { parent }: parent.foo;
+
+  # calls inputs.foo with our desired options and returns the output
+  result = promise ({ inputs }: inputs.foo { some-foo-option = 1; });
+
+  # returns the result of the current module
+  mutations."/bar".some-bar-option = promise ({ options }: options {});
+}
+```
+You should now do:
+```nix
+{
+  inputs.foo.from = { parent }: parent.foo;
+  inputs.foo.options = { some-foo-option = 1; };
+  # results.foo is the output of calling the foo module with inputs.foo.options
+  result = promise ({ results }: results.foo);
+
+  # `result` is the output of the current module
+  mutations."/bar".some-bar-option = promise ({ result }: result);
+}
+```
+
+Often, when specifying the options for an input, we need access to the current module's args. This can be done by making
+`inputs.$name.options` itself a promise, like so:
+
+```nix
+{
+  options.favorite-number.type = types.int;
+
+  inputs.foo.from = { parent }: parent.foo;
+  inputs.foo.options = promise (
+    { options }:
+    {
+      some-foo-option = options.favorite-number or -1;
+    }
+  );
+
+  result = promise ({ results }: results.foo);
+}
+```
+
+This new format allows injections to change the options that are passed to an input, like so:
+
+```nix
+# injections/foo.nix
+{
+  inputs.foo.options = promise.map (
+    prev: prev // {
+      some-other-option = false;
+    }
+  );
+}
+```
+This was previously one of the major limitations of injections. There are still improvements to be made - a
+`promise.map` still can't create a new promise - but compared to the status quo, this is a massive buff.
+
 # Promises deprecations
 
 Attributes like `defaultFunc` and `impl` have been deprecated in favor of their promise equivalents. Similarly,
