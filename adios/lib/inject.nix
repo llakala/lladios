@@ -26,15 +26,13 @@ let
         # awaiting a previous value to inject into it
         if (lhs.__adiosPromise or false) then
           # left side is a promise, create a new promise that calls the old one
-          {
-            __adiosPromise = true;
-            # preserve the same functionArgs as the original
-            __promiseArgs = lhs.__promiseArgs or (functionArgs lhs.resolve);
-            resolve = args: rhs.resolve (lhs.resolve args);
+          lhs
+          // {
+            awaiters = (lhs.awaiters or [ ]) ++ [ rhs.await ];
           }
         else
           # left side wasn't a promise, pass the prev value directly
-          rhs.resolve lhs
+          rhs.await lhs
       else if !isAttrs lhs then
         # left isn't an attrset, rhs wins
         rhs

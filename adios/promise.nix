@@ -3,8 +3,8 @@
     __adiosPromise = true;
     inherit resolve;
   };
-  map = resolve: {
+  map = await: {
     __adiosAwaiting = true;
-    inherit resolve;
+    inherit await;
   };
 }

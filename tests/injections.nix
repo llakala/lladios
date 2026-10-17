@@ -13,7 +13,7 @@
     expected = true;
   };
 
-  testPromiseMappingNonPromise = {
+  testMappingNonPromise = {
     module = adios.lib.inject [
       {
         options.test = {
@@ -29,7 +29,7 @@
     expected = 11;
   };
 
-  testPromiseMappingPromise = {
+  testMappingPromise = {
     module = adios.lib.inject [
       {
         options.hello = {
@@ -45,18 +45,26 @@
     expected = "hello world";
   };
 
-  testTriplePromise = {
+  testSubPromise = {
     module = adios.lib.inject [
       {
         result = promise (_: 2);
       }
       {
-        result = promise.map (prev: prev * 3);
+        options.foo = {
+          type = types.int;
+          default = 5;
+        };
+        result = promise.map (
+          prev:
+          # return a new promise
+          promise ({ options }: prev + options.foo)
+        );
       }
       {
-        result = promise.map (prev: prev + 1);
+        result = promise.map (prev: prev - 7);
       }
     ];
-    expected = 7;
+    expected = 0;
   };
 }

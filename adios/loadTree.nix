@@ -34,15 +34,41 @@ let
       intersectFargs = intersectAttrs (functionArgs fn);
     in
     args: fn (intersectFargs args);
+
   callPromiseWith =
     args: promise:
-    promise.resolve (intersectAttrs (promise.__promiseArgs or (functionArgs promise.resolve)) args);
+    if promise ? awaiters then
+      foldl' (
+        prev: await:
+        let
+          result = await prev;
+        in
+        if result.__adiosPromise or false then
+          result.resolve (intersectAttrs (functionArgs result.resolve) args)
+        else
+          result
+      ) (promise.resolve (intersectAttrs (functionArgs promise.resolve) args)) promise.awaiters
+    else
+      promise.resolve (intersectAttrs (functionArgs promise.resolve) args);
   callCachedPromise =
     promise:
     let
-      intersectFargs = intersectAttrs (promise.__promiseArgs or (functionArgs promise.resolve));
+      intersectFargs = intersectAttrs (functionArgs promise.resolve);
     in
-    args: promise.resolve (intersectFargs args);
+    if promise ? awaiters then
+      args:
+      foldl' (
+        prev: await:
+        let
+          result = await prev;
+        in
+        if result.__adiosPromise or false then
+          result.resolve (intersectAttrs (functionArgs result.resolve) args)
+        else
+          result
+      ) (promise.resolve (intersectFargs args)) promise.awaiters
+    else
+      args: promise.resolve (intersectFargs args);
 
   printList = list: "[${concatStringsSep ", " list}]";
 

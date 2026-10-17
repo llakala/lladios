@@ -1,5 +1,57 @@
 Any new features or breaking changes will be listed here.
 
+# Sub-promises when mapping an old promise
+
+`promise.map` provides the usecase of reading the previous value during an injection, similar to `prevAttrs` in
+`stdenv.mkDerivation`, or `prev` in an overlay. However, in the past, `promise.map` wasn't allowed to itself return a
+promise. This is now possible. Here's an example of doing this inside an injection:
+
+```nix
+# injections/foo.nix
+{ promise, ... }:
+{
+  inputs.some-input.from = parent: parent.some-input;
+  options.example-option.default = promise.map (
+    # reading from the old value of example-option
+    prev:
+    # create another promise to read from `args`
+    promise (
+      { inputs }: prev + inputs.some-input.some-option
+    )
+  )
+}
+```
+
+The existing limitations of promises still apply. Promises are only resolved if they're used in a specific set of
+"known" attributes. For example:
+```nix
+# injections/module-1.nix
+{
+  # these are all valid places to create a promise
+  options.option-a.default = promise ({ inputs }: inputs.module-2.option-b);
+  result = promise ({ results }: results.module-2);
+  inputs.module-2.args = promise ({ result }: { option-c = result; });
+  mutations."/module-2".option-d = promise ({ options }: options.option-e);
+
+  # these are NOT valid places to create a promise.
+  options.option-f.description = promise ({}: "New description for option-a");
+  inputs.module-2.from = promise ({}: { parent }: parent.module-3);
+
+  # you can use `promise.map` anywhere, since it's handled while performing `adios.lib.inject`
+  options.option-g.mutators = promise.map (prev: prev ++ [ "/module-2" ]);
+  assertions = promise.map (prev: prev ++ [ someNewAssertion ]);
+
+  # but this will NOT work - because now it expects a promise to actually be resolved
+  options.option-h.example = promise.map (
+    prev:
+    promise (
+      { options }:
+      prev + options.option-i
+    )
+  );
+}
+```
+
 # New format for calling inputs
 
 Calling inputs directly (like `inputs.foo {}`) within a module tree is now deprecated, in favor of specifying the
