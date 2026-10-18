@@ -1,5 +1,36 @@
 Any new features or breaking changes will be listed here.
 
+# `merge` moved
+
+The collection of functions under `adios.lib.merge` have been moved to `adios.merge`. This makes them easier to
+access in the context of `adios.lib.importModules`. To avoid shadowing `lib` as a symbol (which Nix users often expect
+to mean `nixpkgs.lib`), best practice was previously something like this:
+
+```nix
+# before.nix
+{ types, ... } @ adios:
+{
+  options.foo.type = types.listOf types.int;
+  options.foo.mergeFunc = adios.lib.merge.lists.concat;
+}
+```
+
+However, the new location means `merge` can be destructured directly:
+
+```nix
+# after.nix
+{ types, merge, ... }:
+{
+  options.foo.type = types.listOf types.int;
+  options.foo.mergeFunc = merge.lists.concat;
+}
+```
+
+Providing a decent error message here is difficult, as attribute access doesn't provide location information. We could
+throw instead and rely on our context, but warnings give easier migrations that don't prevent eval. To balance these
+goals, usage of the old location will print a warning message that recommends using
+[abort-on-warn](https://nix.dev/manual/nix/2.35/command-ref/conf-file#conf-abort-on-warn).
+
 # Sub-promises when mapping an old promise
 
 `promise.map` provides the usecase of reading the previous value during an injection, similar to `prevAttrs` in

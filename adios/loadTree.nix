@@ -1,4 +1,4 @@
-# Types from adios
+# types from adios
 types:
 let
   inherit (builtins)
@@ -128,8 +128,9 @@ let
           [ ]
       ) (attrNames options)
     );
-  messages = import ./messages.nix { inherit printList; };
 in
+# error / warning messages
+messages:
 # Self-reference for the result of this file
 tree:
 let
