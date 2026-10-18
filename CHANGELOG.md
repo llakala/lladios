@@ -1,5 +1,9 @@
 Any new features or breaking changes will be listed here.
 
+# `merge` moved
+
+TODO
+
 # Sub-promises when mapping an old promise
 
 `promise.map` provides the usecase of reading the previous value during an injection, similar to `prevAttrs` in
