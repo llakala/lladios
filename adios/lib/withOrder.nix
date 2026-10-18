@@ -1,8 +1,9 @@
 let
-  inherit (builtins) sort;
+  sortByOrder = builtins.sort (a: b: a.order < b.order);
+  mapValues = map (mutation: mutation.value);
 in
 mergeFunc:
 { mutators }:
 mergeFunc {
-  mutators = map (mutation: mutation.value) (sort (a: b: a.order < b.order) mutators);
+  mutators = mapValues (sortByOrder mutators);
 }
