@@ -2,7 +2,7 @@
 
 ## Behavior
 
-This function takes the raw data from mutators each providing some attribute set, like this:
+This function takes the raw data from definitions each providing some attribute set, like this:
 
 ```nix
 {{#include dataBefore.nix}}
