@@ -76,6 +76,11 @@ in
     See the lladios changelog for more info:
     https://github.com/llakala/lladios/blob/main/CHANGELOG.md#new-format-for-calling-options'' null;
 
+  mergeFuncErrorMessage = ''
+    option defined 'mergeFunc', but this is deprecated in favor of 'merge'.
+    see the lladios changelog for more info:
+    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#mergefunc-deprecated'';
+
   mkMissingParamsError =
     self: errorContext: options: params:
     let

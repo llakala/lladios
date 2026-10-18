@@ -1,12 +1,10 @@
 { merge, ... }:
 {
   testSuccess = {
-    expr = merge.attrs.recursively {
-      mutators = [
-        { foo.bar = 1; }
-        { foo.baz = 2; }
-      ];
-    };
+    expr = merge.attrs.recursively [
+      { foo.bar = 1; }
+      { foo.baz = 2; }
+    ];
     expected = {
       foo.bar = 1;
       foo.baz = 2;
@@ -14,12 +12,10 @@
   };
 
   testFailure = {
-    expr = merge.attrs.recursively {
-      mutators = [
-        { foo.bar = 1; }
-        { foo.bar = 2; }
-      ];
-    };
+    expr = merge.attrs.recursively [
+      { foo.bar = 1; }
+      { foo.bar = 2; }
+    ];
     expectedError.msg = ''
       while calling 'adios.merge.attrs.recursively':
       while attempting to merge mutators \[

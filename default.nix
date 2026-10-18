@@ -5,8 +5,8 @@ let
     korora = import ./korora;
   };
   merge = {
-    lists.concat = { mutators }: concatLists mutators;
-    strings.concatLines = { mutators }: concatStringsSep "\n" mutators;
+    lists.concat = concatLists;
+    strings.concatLines = concatStringsSep "\n";
     attrs.flat = import ./adios/merge/attrs-flat.nix {
       inherit (types) toPretty;
     };

@@ -10,7 +10,7 @@ let
   isDerivation = value: (value.type or null) == "derivation";
 
 in
-{ mutators }:
+mutators:
 let
   recurse = zipAttrsWith (
     key: values:

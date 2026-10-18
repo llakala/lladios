@@ -8,7 +8,7 @@ let
     ;
 
 in
-{ mutators }:
+mutators:
 zipAttrsWith (
   name: values:
   if length values == 1 then
