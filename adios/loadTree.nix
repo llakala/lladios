@@ -212,12 +212,13 @@ let
   computeMutators' =
     errorPrefix:
     {
-      self,
-      args,
       name,
       option,
+      self,
+      args,
       params,
-    }:
+      default ? null,
+    }@mutatorInfo:
     let
       check =
         if option ? mutatorType then
@@ -225,7 +226,17 @@ let
         else
           option.type.check;
     in
-    concatMap (
+    (
+      if mutatorInfo ? default then
+        [
+          (addErrorContext "${errorPrefix} '${self.path}': in default mutator of option '${name}'" (
+            check default
+          ))
+        ]
+      else
+        [ ]
+    )
+    ++ map (
       mutatorPath:
       let
         resolution = fetchModuleByPath self.path mutatorPath;
@@ -234,39 +245,29 @@ let
         args' = if self.path == mutatorPath then args else resolution.args;
         mutations = resolution.mutations.${self.path};
       in
-      if mutations ? ${name} then
-        [
-          (addErrorContext
-            "${errorPrefix} '${self.path}': in mutator '${resolution.path}' of option '${name}'"
-            (
-              check (
-                if mutations.${name}.__adiosPromise or false then
-                  callPromiseWith args' mutations.${name}
-                else if isFunction mutations.${name} then
-                  seq messages.mutationFunctionWarning (
-                    warn "mutation was function in ${self.path}.mutations.${mutatorPath}.${name}" (
-                      callFunctionWith args' mutations.${name}
-                    )
+      addErrorContext "${errorPrefix} '${self.path}': in mutator '${resolution.path}' of option '${name}'"
+        (
+          if mutations ? ${name} then
+            check (
+              if mutations.${name}.__adiosPromise or false then
+                callPromiseWith args' mutations.${name}
+              else if isFunction mutations.${name} then
+                seq messages.mutationFunctionWarning (
+                  warn "mutation was function in ${self.path}.mutations.${mutatorPath}.${name}" (
+                    callFunctionWith args' mutations.${name}
                   )
-                else
-                  mutations.${name}
-              )
+                )
+              else
+                mutations.${name}
             )
-          )
-        ]
-      else
-        warn
-          "'${self.path}': mutator '${resolution.path}' of option '${name}' was expected to provide a mutation. hint: did you make a typo?"
-          [ ]
+          else
+            throw "mutator was expected to provide a mutation. hint: did you make a typo?"
+        )
     ) option.mutators
-    # If the mutators list is nonempty, have the value passed in eval/impl
-    # stage go through the mergeFunc, under the current module's name.
     ++ (
       if params ? ${name} then
         [
-          # TODO: improve this error message to make it clearer what "outside
-          # mutator" is
-          (addErrorContext "${errorPrefix} '${self.path}': in outside mutator of option '${name}'" (
+          (addErrorContext "${errorPrefix} '${self.path}': in external mutator of option '${name}'" (
             check params.${name}
           ))
         ]
@@ -307,7 +308,7 @@ let
           option = options.${name};
           context = "${errorPrefix} '${self.path}': in option '${name}'";
         in
-        # Gross hack - if you want to always go through the mergeFunc,
+        # Gross hack - if you want to always go through `merge`,
         # set `mutators = []`.
         if option ? mutators then
           [
@@ -315,25 +316,40 @@ let
               inherit name;
               value = addErrorContext context (
                 option.type.check (
-                  callFunctionWith (
-                    args
-                    // {
-                      mutators = computeMutators {
+                  if option ? mergeFunc then
+                    throw messages.mergeFuncError
+                  else
+                    let
+                      result = option.merge (computeMutators {
                         inherit
-                          args
                           name
                           option
-                          params
                           self
+                          args
+                          params
                           ;
-                      };
-                    }
-                  ) option.mergeFunc
+                        # include default as a mutator
+                        ${if option ? default || option ? defaultFunc then "default" else null} =
+                          if option ? defaultFunc then
+                            if option ? default then
+                              seq messages.defaultFuncAndDefaultWarning (
+                                warn "defaultFunc AND default in ${self.path}.${name}" (callFunctionWith args option.defaultFunc)
+                              )
+                            else
+                              seq messages.defaultFuncOnlyWarning (
+                                warn "defaultFunc in ${self.path}.${name}" (callFunctionWith args option.defaultFunc)
+                              )
+                          else if option.default.__adiosPromise or false then
+                            callPromise option.default
+                          else
+                            option.default;
+                      });
+                    in
+                    if result.__adiosPromise or false then callPromise result else result
                 )
               );
             }
           ]
-
         # Compute nested options
         else if option ? options then
           let
