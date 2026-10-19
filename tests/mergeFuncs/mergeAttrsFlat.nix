@@ -1,6 +1,7 @@
-adios: {
+{ merge, ... }:
+{
   testSuccess = {
-    expr = adios.lib.merge.attrs.flat {
+    expr = merge.attrs.flat {
       mutators = [
         { a = 1; }
         { b = 2; }
@@ -16,14 +17,14 @@ adios: {
 
   # the toplevel keys must be disjoint
   testFailure = {
-    expr = adios.lib.merge.attrs.flat {
+    expr = merge.attrs.flat {
       mutators = [
         { foo.bar = 1; }
         { foo.baz = 2; }
       ];
     };
     expectedError.msg = ''
-      while calling 'adios.lib.merge.attrs.flat':
+      while calling 'adios.merge.attrs.flat':
       while attempting to merge mutators '\[
         \{ foo = \{ bar = 1; }; }
         \{ foo = \{ baz = 2; }; }
