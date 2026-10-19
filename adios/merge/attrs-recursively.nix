@@ -10,7 +10,7 @@ let
   isDerivation = value: (value.type or null) == "derivation";
 
 in
-{ mutators }:
+mutators:
 let
   recurse = zipAttrsWith (
     key: values:
@@ -20,7 +20,7 @@ let
       recurse values
     else
       throw ''
-        while calling 'adios.lib.merge.attrs.recursively':
+        while calling 'adios.merge.attrs.recursively':
         while attempting to merge mutators ${toPretty { recursivelyMultiline = false; } mutators}
         found key '${key}' set to multiple values that couldn't be merged
         unmergeable values: ${toPretty { multiline = false; } values}''

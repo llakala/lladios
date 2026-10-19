@@ -2,8 +2,4 @@ let
   sortByOrder = builtins.sort (a: b: a.order < b.order);
   mapValues = map (mutation: mutation.value);
 in
-mergeFunc:
-{ mutators }:
-mergeFunc {
-  mutators = mapValues (sortByOrder mutators);
-}
+mergeFunc: mutators: mergeFunc (mapValues (sortByOrder mutators))

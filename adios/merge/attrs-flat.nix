@@ -8,7 +8,7 @@ let
     ;
 
 in
-{ mutators }:
+mutators:
 zipAttrsWith (
   name: values:
   if length values == 1 then
@@ -19,7 +19,7 @@ zipAttrsWith (
       badMutators = filter (mutator: mutator ? ${name}) mutators;
     in
     throw ''
-      while calling 'adios.lib.merge.attrs.flat':
+      while calling 'adios.merge.attrs.flat':
       while attempting to merge mutators '${
         toPretty { recursivelyMultiline = false; } badMutators
       }':

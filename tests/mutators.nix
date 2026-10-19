@@ -1,4 +1,4 @@
-{ types, promise, ... }@adios:
+{ types, merge, promise, ... }:
 {
   testSuccess = {
     modules = {
@@ -24,7 +24,7 @@
             "/mutator3"
           ];
           # add the values
-          mergeFunc = { mutators }: builtins.foldl' (acc: v: acc + v) 0 mutators;
+          merge = builtins.foldl' (acc: v: acc + v) 0;
         };
         result = promise ({ options }: options.test);
       };
@@ -40,7 +40,7 @@
       options.mutatedOption = {
         type = types.list;
         mutators = [ "/" ];
-        mergeFunc = adios.lib.merge.lists.concat;
+        merge = merge.lists.concat;
       };
       options.implStageOption = {
         type = types.string;
@@ -61,6 +61,6 @@
       };
       result = promise ({ options }: options.foo);
     };
-    expectedError.msg = "in struct 'option': if 'mutators' are specified, 'mergeFunc' must be as well";
+    expectedError.msg = "in struct 'option': if 'mutators' are specified, 'merge' must be as well";
   };
 }
