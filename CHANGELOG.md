@@ -30,7 +30,7 @@ The existing limitations of promises still apply. Promises are only resolved if 
   # these are all valid places to create a promise
   options.option-a.default = promise ({ inputs }: inputs.module-2.option-b);
   result = promise ({ results }: results.module-2);
-  inputs.module-2.args = promise ({ result }: { option-c = result; });
+  inputs.module-2.options = promise ({ result }: { option-c = result; });
   mutations."/module-2".option-d = promise ({ options }: options.option-e);
 
   # these are NOT valid places to create a promise.
