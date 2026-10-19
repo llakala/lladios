@@ -304,7 +304,7 @@ let
         name:
         let
           option = options.${name};
-          errorMessage = "${errorPrefix} '${self.path}': in option '${name}'";
+          context = "${errorPrefix} '${self.path}': in option '${name}'";
         in
         # Gross hack - if you want to always go through the mergeFunc,
         # set `mutators = []`.
@@ -312,7 +312,7 @@ let
           [
             {
               inherit name;
-              value = addErrorContext errorMessage (
+              value = addErrorContext context (
                 option.type.check (
                   callFunctionWith (
                     args
@@ -353,7 +353,7 @@ let
           [
             {
               inherit name;
-              value = addErrorContext errorMessage (option.type.check params.${name});
+              value = addErrorContext context (option.type.check params.${name});
             }
           ]
         else if option ? defaultFunc then
@@ -367,7 +367,7 @@ let
             [
               {
                 inherit name;
-                value = addErrorContext errorMessage (option.type.check (callFunctionWith args option.defaultFunc));
+                value = addErrorContext context (option.type.check (callFunctionWith args option.defaultFunc));
               }
             ]
         # default value
@@ -375,7 +375,7 @@ let
           [
             {
               inherit name;
-              value = addErrorContext errorMessage (
+              value = addErrorContext context (
                 option.type.check (
                   if option.default.__adiosPromise or false then callPromise option.default else option.default
                 )
