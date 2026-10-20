@@ -27,6 +27,7 @@ in
 
 Note that `inject` takes a list for a reason - injections can be performed multiple times. This works as you may expect,
 where each set injects into the previous one from left to right.
+
 ```nix
   root = {
     modules = adios.lib.inject [
@@ -39,10 +40,10 @@ where each set injects into the previous one from left to right.
 
 ## How does it work?
 
-`inject` can be thought of as "recursive `//`" for module definitions. If you're not familiar with the
-intricacies of `//`, it works like this on attribute sets:
+`inject` can be thought of as "recursive `//`" for module definitions. If you're not familiar with the intricacies of
+`//`, it works like this on attribute sets:
 
-```nix
+``` nix
 { a.b = 1; } // { a.c = 2; }
 # =>
 { a.c = 2; }
@@ -50,7 +51,7 @@ intricacies of `//`, it works like this on attribute sets:
 
 `inject` makes this behavior work recursively.
 
-```nix
+``` nix
 adios.lib.inject [ { a.b = 1; } { a.c = 2; } ]
 # =>
 { a = { b = 1; c = 2; }; }
@@ -58,7 +59,7 @@ adios.lib.inject [ { a.b = 1; } { a.c = 2; } ]
 
 Just like `//`, it also allows overriding an existing attribute's value.
 
-```nix
+``` nix
 adios.lib.inject [
   { unchanged-value = true; nested.overridden-value = -1; }
   { nested.overridden-value = true; }
@@ -71,7 +72,7 @@ adios.lib.inject [
 
 Here's an example of injecting into a basic Adios module:
 
-```nix
+``` nix
 let
   base = {
     options = {
@@ -114,7 +115,7 @@ tree {} == ''
 `promise.map` can be used inside injections to "await" the old version of an attribute. Here's an alternative injection
 for the above module that makes use of it:
 
-```nix
+``` nix
 let
   injection = {
     options.age.default = promise.map (prev: prev * 2);
@@ -131,8 +132,8 @@ tree {} == ''
 ''
 ```
 
-Let's take a look at how this works. When `adios.lib.inject` is called, `options.age.default` was _not_ a promise -- so
+Let's take a look at how this works. When `adios.lib.inject` is called, `options.age.default` was *not* a promise -- so
 the `prev:` function can be resolved immediately, and `20` is returned. But `age-someday` is more interesting. Since the
 original value was a promise, we don't know what `prev` is until the original promise is resolved. So `promise.map`
-instead returns a _new_ promise that wraps the original promise. Upon evaluating the injected module with Adios, the
+instead returns a *new* promise that wraps the original promise. Upon evaluating the injected module with Adios, the
 promises will be resolved recursively.

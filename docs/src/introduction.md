@@ -1,9 +1,12 @@
 # Adios Documentation
 
-> This repository is a fork of upstream Adios. However, it aims to be an _implementation_ of Adios, just more actively
-> maintained. For that reason, even though "lladios" is the repo name, we still call it the Adios module system.
+> [!NOTE]
+> This documentation goes over the syntax and structure of *lladios*, a fork of adisbladis' adios module system. It
+> implements more features such as mutators and promises that improve the flexibility and syntax of adios. lladios is
+> still called adios because it's intended to be a continuation of adios.
 
 ## What is Adios?
+
 Adios is a general-use module system for the [nix language](https://nix.dev/). Its goal is to be a fast, simple, and
 portable alternative to `lib.evalModules` (the module system used by NixOS and home-manager). `lib.evalModules` may be
 referred to as 'the NixOS module system' throughout this documentation.
@@ -14,7 +17,7 @@ Where you might use:
 - a `pkgs.callPackage` set
 - A small/medium `lib.evalModules` set
 
-Adios aims to be a powerful alternative, with minimal performance overhead.
+Adios aims to be a powerful alternative with minimal performance overhead.
 
 ## *Why* is `lib.evalModules` slow?
 
@@ -22,6 +25,7 @@ Adios aims to be a powerful alternative, with minimal performance overhead.
 options, thereby mutating it. This is a 'global mutable namespace' - and it's a terrible idea for performance.
 
 Let's look at the `environment.systemPackages` option. To determine the value of this option, we must:
+
 1. Find all the places where this option is mutated
 2. Merge each definition together
 
@@ -38,10 +42,10 @@ Adios has a completely different model. Rather than working like `lib.evalModule
 that define options and mutate _other_ options, each Adios module is more like a function. Declare some options for the
 module, "call" the module, and get some kind of output.
 
-Here's an example of an Adios module:
+Here's an example of an Adios module in *function form*:
 
 ```nix
-{ types, ... }:
+{ promise, types, ... }: 
 {
   options = {
     num1 = {
@@ -53,7 +57,7 @@ Here's an example of an Adios module:
     };
   };
 
-  impl = { options }: options.num1 + options.num2;
+  result = promise ({ options }: options.num1 + options.num2);
 }
 ```
 
@@ -64,5 +68,4 @@ module { num2 = 3; }
 
 Then it provides `13` as an output.
 
-This may seem much more limited than the NixOS module system at first. But if you read the [tutorial](TODO LINK), you
-may start to see the power of this model.
+See the reference pages for more information. In the future, adios will have a guide that walks through building an adios module set. Feel free to contribute it!

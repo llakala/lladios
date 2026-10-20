@@ -39,8 +39,8 @@ And merges the values into:
 This function should only be used if you want:
 
 1. The option in question to be mutated by other modules
-1. Attrsets with identical keys to be merged recursively
-1. Other values with identical keys to throw an error
+2. Attrsets with identical keys to be merged recursively
+3. Other values with identical keys to throw an error
 
 For example:
 

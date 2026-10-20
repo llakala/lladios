@@ -1,106 +1,55 @@
 # Adios Modules
 
-## Definitions
+An adios module definition is an attribute set. Module definitions care about any of the following attributes:
 
-Adios module definitions are simply nix attribute sets.
+- [`options`](./options.md) - what users of the module are able to modify.
+- [`result`](./result.md) - how the module transforms the options and inputs into the end result.
+- [`modules`](./child-modules.md) - child modules of this module. Determines the way `inputs` are threaded.
+- [`inputs`](./inputs.md) - the modules this module depends on.
+- [`mutations`](./mutations.md) - how this module is able to modify other modules.
+- [`assertions`](./assertions.md) - statements that this module declares must be true.
+
+Any other attributes may also be present (other than `__functor`), and adios will ignore them. A few conventions:
+
+- `name` - the title of the module. in older versions of adios, this was significant; that is no longer the case.
+- `meta` - additional information about the module.
+- `tests` - declarations that verify that the module is working properly.
+
+## Loading Modules
+
+Once a module definition is established, it can be converted into a *loaded* module by using the `adios` functor:
+
 ```nix
-let
-  # This is an impure solution and not recommended for actual usage.
-  # Look at the installation guide for proper instructions.
-  adios = import (fetchTarball "https://github.com/llakala/lladios/archive/main.tar.gz");
-in {
-  options.name = {
-    type = adios.types.string;
-    default = "Alice";
-  };
-
-  impl = { options }: "Hello, ${options.name}!";
-}
-```
-
-In order to use modules, their definitions have to be *loaded* by the adios loader function (provided as a functor
-within the `adios` attribute set). This loader function supplies the module with its inputs, type checks its options,
-and, if an `impl` is present in the module, makes it *callable* by adding a functor to it.
-```nix
-let
-  # This is an impure solution and not recommended for actual usage.
-  # Look at the installation guide for proper instructions.
-  adios = import (fetchTarball "https://github.com/llakala/lladios/archive/main.tar.gz");
-
-  module = {
-    options.name = {
+adios {
+  options = {
+    foo = {
       type = adios.types.string;
-      default = "Alice";
+      default = "World";
     };
-
-    impl = { options }: "Hello, ${options.name}!";
   };
-
-  loadedModule = adios module {};
-in
-  loadedModule {
-    name = "Bob";
-  } # -> "Hello, Bob!"
+  
+  result = promise ({ options }: "Hello ${location}!")
+} {}
+# -> a loaded module
 ```
 
-## Inputs and Child Modules
-Adios module definitions can contain a `modules` attribute. `modules` is an attribute set of other adios modules, which
-can set `modules` of their own, and so on, creating a *tree* of modules. A simple way to set this without inlining other
-modules is by using [`adios.lib.importModules`](../lib/importModules.md).
+## Calling Modules
 
-Once a tree of modules is established, you can add other modules as *inputs* to the module you're working in. Within a
-module definition, `inputs` is an attribute set of input definitions (full reference [here](./inputs.md)). Each input
-definition can provide a `from` function that points to another module, based on the other module's position in the
-tree. Then, the first module's `impl` function will have access to the new module, *after* it is loaded.
+After a module is loaded, it can be *called* by supplying it with an attribute set.
+
 ```nix
 let
-  # This is an impure solution and not recommended for actual usage.
-  # Look at the installation guide for proper instructions.
-  adios = import (fetchTarball "https://github.com/llakala/lladios/archive/main.tar.gz");
-
-  root = {
-    modules = {
-      hello = {
-        options.name = {
-          type = adios.types.string;
-          default = "Alice";
-        };
-
-        impl = { options }: "Hello, ${options.name}!";
-      };
-
-      helloAndWelcome = {
-        inputs.hello.from = { parent }: parent.hello;
-
-        options.name = {
-          type = adios.types.string;
-          default = "Alice";
-        };
-
-        impl = { inputs, options }: (inputs.hello { inherit (options) name; }) + " Welcome!";
+  module = adios {
+    options = {
+      foo = {
+        type = adios.types.string;
+        default = "World";
       };
     };
-  };
-
-  loadedModule = adios root {};
+    
+    result = promise ({ options }: "Hello ${location}!")
+  } {};
 in
-  loadedModule.modules.helloAndWelcome {
-    name = "Bob";
-  } # -> "Hello, Bob! Welcome!"
-```
-
-## Conventions
-While inline module definitions as shown in the above examples work, modules are more commonly expressed as functions
-that take the `adios` attribute set and *return* a module, allowing the module definition to be contained in one file,
-and then imported with `import ./file.nix adios`. This convention is supported by
-[`adios.lib.importModules`](../lib/importModules.md).
-```nix
-adios: {
-  options.name = {
-    type = adios.types.string;
-    default = "Alice";
-  };
-
-  impl = { options }: "Hello, ${options.name}!";
-}
+  module { location = "Universe"; }
+# -> "Hello Universe!"
 ```
