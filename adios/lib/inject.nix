@@ -2,7 +2,6 @@ let
   inherit (builtins)
     elemAt
     foldl'
-    functionArgs
     head
     isAttrs
     length
@@ -16,8 +15,8 @@ let
       head values
     else
       let
-        lhs = head values;
-        rhs = elemAt values 1;
+        lhs = elemAt values 1;
+        rhs = head values;
       in
       if !isAttrs rhs then
         # can't recurse, not awaiting. rhs wins
@@ -38,7 +37,7 @@ let
         rhs
       else
         # lhs and rhs are both non-promise attrsets
-        recurse [ lhs rhs ]
+        recurse values
   );
 in
 foldl' (
@@ -46,5 +45,5 @@ foldl' (
   if a == {} then
     b
   else
-    recurse [ a b ]
+    recurse [ b a ]
 ) {}
