@@ -1,13 +1,14 @@
-{ printList }:
-
 let
   inherit (builtins)
     attrNames
+    concatStringsSep
     filter
     head
     length
     trace
     ;
+
+  printList = list: "[${concatStringsSep ", " list}]";
 
   typeOf =
     let
@@ -75,6 +76,21 @@ in
     Instead, the options for an input should be specified inside `inputs.$name.options`. The result is then stored in `results.$name`.
     See the lladios changelog for more info:
     https://github.com/llakala/lladios/blob/main/CHANGELOG.md#new-format-for-calling-options'' null;
+
+  mergeMovedMessage = ''
+    'adios.lib.merge' has been moved to 'adios.merge'.
+    The new location allows `merge` to be conveniently destructured in a file's toplevel parameters.
+
+    To see which modules need to be migrated, add `--option abort-on-warn true` to your Nix command
+    of choice. This will print a proper error context and show the offending module name(s).
+
+    See the lladios [changelog](https://github.com/llakala/lladios/blob/main/CHANGELOG.md#merge-moved) for more information.'';
+
+  withPrioError = throw ''
+    `adios.merge.general.withPrio` has been renamed to `adios.merge.general.withOrder`
+    This is because the function really sets ordering info, not priority,
+    and we may wish to add a withPrio function in the future
+  '';
 
   mkMissingParamsError =
     self: errorContext: options: params:

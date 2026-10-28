@@ -1,4 +1,4 @@
-{ types, promise, ... }@adios:
+{ types, merge, promise, ... }:
 {
   testSuccess = {
     modules = {
@@ -40,7 +40,7 @@
       options.mutatedOption = {
         type = types.list;
         mutators = [ "/" ];
-        mergeFunc = adios.lib.merge.lists.concat;
+        mergeFunc = merge.lists.concat;
       };
       options.implStageOption = {
         type = types.string;

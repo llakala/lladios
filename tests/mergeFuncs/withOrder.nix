@@ -1,6 +1,7 @@
-adios: {
+{ merge, ... }:
+{
   testSuccess = {
-    expr = adios.lib.merge.general.withOrder adios.lib.merge.lists.concat {
+    expr = merge.general.withOrder merge.lists.concat {
       mutators = [
         {
           value = [ "hello" ];
