@@ -1,5 +1,10 @@
 let
-  inherit (builtins) concatLists concatStringsSep seq;
+  inherit (builtins)
+    concatLists
+    concatStringsSep
+    mapAttrs
+    seq
+    ;
 
   types = import ./adios/types.nix {
     korora = import ./korora;
@@ -25,20 +30,35 @@ let
 
   loadTree = import ./adios/loadTree.nix types messages;
 
+  canonicalize = module: {
+    _module = module;
+    ${if module.modules != { } then "modules" else null} = mapAttrs (_: canonicalize) module.modules;
+    ${if module ? __functor then "__functor" else null} = module.__functor;
+    inherit (module.args) options inputs results;
+    ${if module ? __functor then "result" else null} = module.args.result;
+  };
+
   adios = {
     inherit types lib merge;
     promise = import ./adios/promise.nix;
+    eval =
+      {
+        root,
+        options ? { },
+      }:
+      let
+        tree = loadTree tree options root;
+      in
+      canonicalize tree;
     __functor =
-      _: rootDef:
+      _: root:
       {
         options ? { },
       }:
       let
-        # Allow viewing the final result while using the tree for fetching
-        # modules relative to root
-        tree = loadTree tree options rootDef;
+        tree = loadTree tree options root;
       in
-      tree;
+      seq messages.callingAdiosWarning tree;
   };
 
 in

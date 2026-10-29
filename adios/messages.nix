@@ -97,6 +97,13 @@ in
     See the lladios changelog for rationale and a migration guide:
     https://github.com/llakala/lladios/blob/main/CHANGELOG.md#merge-moved'';
 
+  callingAdiosWarning = traceMessage ''
+    Calling `adios root {}` has been deprecated in favor of a new `adios.eval` function.
+    This function takes `root` as a parameter, and returns a new module schema that's more user-friendly.
+
+    See the lladios changelog for rationale and a migration guide:
+    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#new-module-structure'';
+
   withPrioError = throw ''
     `adios.merge.general.withPrio` has been renamed to `adios.merge.general.withOrder`
     This is because the function really sets ordering info, not priority,
