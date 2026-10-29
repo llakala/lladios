@@ -33,8 +33,8 @@
     apply = tree: tree;
     expectedError.msg = ''
       in module '/': module is of type 'function', but Adios modules should be attrsets.
-      \s+hint: since your module is a function, you probably expected it to be called with
-      \s+'adios' automatically. To do this, use 'adios.lib.importModules' on a directory'';
+      hint: since your module is a function, you probably expected it to be called with
+      'adios' automatically. To do this, use 'adios.lib.importModules' on a directory'';
   };
 
   testTypecheckFailure = {

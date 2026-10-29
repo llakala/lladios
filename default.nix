@@ -1,5 +1,5 @@
 let
-  inherit (builtins) concatLists concatStringsSep warn;
+  inherit (builtins) concatLists concatStringsSep seq;
 
   types = import ./adios/types.nix {
     korora = import ./korora;
@@ -20,7 +20,7 @@ let
   lib = {
     importModules = import ./adios/lib/importModules.nix { inherit adios; };
     inject = import ./adios/lib/inject.nix;
-    merge = warn messages.mergeMovedMessage merge;
+    merge = seq messages.mergeMovedWarning merge;
   };
 
   loadTree = import ./adios/loadTree.nix types messages;
