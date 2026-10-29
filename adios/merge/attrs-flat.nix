@@ -8,21 +8,21 @@ let
     ;
 
 in
-{ mutators }:
+definitions:
 zipAttrsWith (
   name: values:
   if length values == 1 then
-    # Only one mutator
+    # Only one definition
     head values
   else
     let
-      badMutators = filter (mutator: mutator ? ${name}) mutators;
+      badDefinitions = filter (def: def ? ${name}) definitions;
     in
     throw ''
       while calling 'adios.merge.attrs.flat':
-      while attempting to merge mutators '${
-        toPretty { recursivelyMultiline = false; } badMutators
+      while attempting to merge definitions '${
+        toPretty { recursivelyMultiline = false; } badDefinitions
       }':
-      found multiple mutators attempting to set key '${name}'
+      found multiple definitions attempting to set key '${name}'
     ''
-) mutators
+) definitions
