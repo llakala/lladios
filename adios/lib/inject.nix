@@ -3,6 +3,7 @@ let
     elemAt
     foldl'
     head
+    intersectAttrs
     isAttrs
     length
     zipAttrsWith
@@ -27,7 +28,7 @@ let
           # left side is a promise, create a new promise that calls the old one
           lhs
           // {
-            awaiters = (lhs.awaiters or [ ]) ++ [ rhs.await ];
+            awaiters = (lhs.awaiters or []) ++ [ rhs.await ];
           }
         else
           # left side wasn't a promise, pass the prev value directly
@@ -36,14 +37,33 @@ let
         # left isn't an attrset, rhs wins
         rhs
       else
-        # lhs and rhs are both non-promise attrsets
-        recurse values
+        lhs
+        // (
+          let
+            # lhs attributes that were included in rhs
+            lhs' = intersectAttrs rhs lhs;
+          in
+          if lhs' == {} then
+            rhs
+          else
+            recurse [ rhs lhs' ]
+        )
   );
 in
 foldl' (
-  a: b:
-  if a == {} then
-    b
+  lhs: rhs:
+  if lhs == {} then
+    rhs
   else
-    recurse [ b a ]
+    lhs
+    // (
+      let
+        # lhs attributes that were included in rhs
+        lhs' = intersectAttrs rhs lhs;
+      in
+      if lhs' == {} then
+        rhs
+      else
+        recurse [ rhs lhs' ]
+    )
 ) {}
