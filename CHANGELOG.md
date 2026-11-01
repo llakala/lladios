@@ -1,5 +1,71 @@
 Any new features or breaking changes will be listed here.
 
+# New module structure
+
+Previously, evaluating a module returned a structure that looked like a superset of the original module definition. This
+was based on an old design goal where an entire tree could be evaluated and then fed _back_ into Adios. However, this
+goal hasn't been pursued in months, and the "superset" behavior is more confusing than it is helpful.
+
+With this in mind, modules now use a new schema:
+
+```nix
+{
+  __functor = ...; # call the module with new params
+  modules = ...; # the module's children
+
+  options = ...; # # each option's evaluated value
+  result = ...; # the result of calling the module with empty params
+  inputs = ...; # the values of each input's options
+  results = ...; # the result of calling each input
+
+  _module = ...; # attributes used in evaluation (intended for internal use, may change without warning)
+}
+```
+
+To allow clean migrations to the new schema, a new function is used to evaluate Adios modules. Where you would previously use:
+
+```nix
+let
+  root = ...;
+  tree = adios root {};
+  # or if you use eval parameters:
+  tree = adios root {
+    options = ...;
+  };
+```
+
+You should now use:
+
+```nix
+let
+  tree = adios.eval {
+    root = ...;
+  };
+  # or if you use eval parameters:
+  tree = adios.eval {
+    root = ...;
+    options = ...;
+  };
+```
+
+Only `adios.eval` will return the new schema, and calling `adios` will warn.
+
+Design decisions of the new schema include:
+
+1. Artifacts of the module are moved from within `args` to toplevel. This is useful for injection-centered workflows, as
+  if you don't need new params, then accessing the computed `options` or `result` is trivial. Care is taken to only
+  compute these artifacts if they're actually accessed, so calling the functor directly won't compute the args twice.
+
+2. Attributes like `options`, `mutations`, `inputs`, `assertions`, etc are _not_ accessible at toplevel. Storing and
+  typechecking these attributes improves error messages, but accessing them _through_ the evaluated tree is not an
+  intended usecase. While these are currently still accessible under `_module`, this may change in the future if it
+  improves performance. If you need access to these attributes, the non-evaluated root can be used.
+
+3. Other attributes are hidden under `_module`. Currently, this is just the "old" schema that's still used internally,
+   but it's expected to change in the future, and no stability guarantees are given. I trust users to think of usecases
+   I haven't, which is why I'm still exposing this information -- but if something under `_module` is key to your
+   workflow, it may be a sign that Adios should accommodate your usecase better. Issues are welcome :)
+
 # `merge` moved
 
 The collection of functions under `adios.lib.merge` have been moved to `adios.merge`. This makes them easier to
