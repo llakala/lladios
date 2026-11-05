@@ -32,7 +32,7 @@ this way will be an attribute set of all of the options the user has set for tha
 ## Adding arguments
 
 However, you will frequently want to access the *output* of an input module, rather than just its options. To do so, you can
-*call* the input module by specifying the options to call it with (`inputs.<input>.options`). These 
+*call* the input module by specifying the options to call it with (`inputs.<input>.options`). These
 The input can then be accessed within the `results` argument to promises.
 
 ```nix
@@ -41,7 +41,7 @@ The input can then be accessed within the `results` argument to promises.
     from = { root }: root.square;
     options = { number = 2; };
   };
-  
+
   result = adios.promise ({ results }: results.square + 3; )
 }
 ```

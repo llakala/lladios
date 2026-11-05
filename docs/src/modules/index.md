@@ -27,7 +27,7 @@ adios {
       default = "World";
     };
   };
-  
+
   result = promise ({ options }: "Hello ${location}!")
 } {}
 # -> a loaded module
@@ -46,7 +46,7 @@ let
         default = "World";
       };
     };
-    
+
     result = promise ({ options }: "Hello ${location}!")
   } {};
 in

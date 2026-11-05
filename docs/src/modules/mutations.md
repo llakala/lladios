@@ -7,7 +7,7 @@ normal expression or a promise returning one.
 ```nix
 {
   name = "mutating-module";
-  
+
   mutations."/path/to/target-module".target-option = "foo";
 }
 ```
@@ -18,7 +18,7 @@ mutators together:
 ```nix
 {
   name = "target-module";
-  
+
   options.<target-option> = {
     type = adios.types.<type>;
     default = <default>; # will be added to list of 'mutators' below
