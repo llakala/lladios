@@ -1,9 +1,11 @@
 # Adios Documentation
 
 > [!NOTE]
-> This documentation goes over the syntax and structure of *lladios*, a fork of adisbladis' adios module system. It
-> implements more features such as mutators and promises that improve the flexibility and syntax of adios. lladios is
-> still called adios because it's intended to be a continuation of adios.
+> This documentation goes over the syntax and structure of the *lladios* repository, a fork of the original [adios
+> repository](https://github.com/adisbladis/adios) by Adisbladis. Compared to the original repo, lladios is actively
+> maintained, and implements many features that improve the flexibility and semantics of Adios. While the repo has a new
+> name, lladios is an _implementation_ of Adios, and aims to be a continuation. It should still bereferred to as adios
+> in all contexts other than links.
 
 ## What is Adios?
 
@@ -45,7 +47,7 @@ module, "call" the module, and get some kind of output.
 Here's an example of an Adios module in *function form*:
 
 ```nix
-{ promise, types, ... }: 
+{ promise, types, ... }:
 {
   options = {
     num1 = {
@@ -68,4 +70,4 @@ module { num2 = 3; }
 
 Then it provides `13` as an output.
 
-See the reference pages for more information. In the future, adios will have a guide that walks through building an adios module set. Feel free to contribute it!
+See the reference pages for more information.
