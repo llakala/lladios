@@ -1,5 +1,68 @@
 Any new features or breaking changes will be listed here.
 
+# `mergeFunc` deprecated
+
+The `mergeFunc` attribute is deprecated in favor of the new `merge` attribute. This attribute comes with a few behavior
+changes. For most users that only use the premade merge functions, this will be a simple change:
+
+```nix
+{ types, merge, ... }:
+{
+  options.foo = {
+    type = types.listOf types.int;
+    mergeFunc = merge.lists.concat; # before
+    merge = merge.lists.concat; # after
+  };
+}
+```
+
+If you do want to define custom merge semantics, there are several behavior differences that should be noted. These
+are demonstrated in the below codeblock:
+
+```nix
+{ types, merge, promise, ... }:
+{
+  # `merge` supports reading from a default! this default will be prepended to
+  # the front of the definitions list
+  options.option-a = {
+    type = types.listOf types.int;
+    default = [ 1 2 3 ];
+    mutators = [ "/foo" "/bar" ];
+    merge = merge.lists.concat;
+  };
+
+  # `default` always works, even when it's a promise
+  options.option-b = {
+    type = types.listOf types.int;
+    default = promise ({ options }: options.some-other-option ++ [ 1 2 3 ]);
+    mutators = [ "/foo" "/bar" ];
+    merge = merge.lists.concat;
+  };
+
+  # `merge` has a new signature!
+  # you can name the variable whatever you want, but I recommend `definitions`,
+  # as the word mutators was previously overloaded
+  options.option-c = {
+    type = types.listOf types.int;
+    mutators = [ "/foo" "/bar" ];
+    mergeFunc = { mutators }: builtins.concatLists mutators; # before
+    merge = definitions: builtins.concatLists definitions; # after
+    merge = builtins.concatLists; # for simple cases, we can now partially apply
+  };
+
+  # when you need to access values from `args`, a promise can be used.
+  options.option-d = {
+    type = types.listOf types.int;
+    mutators = [ "/foo" "/bar" ];
+    mergeFunc = { mutators, inputs }: builtins.concatLists mutators ++ inputs.foo.some-option; # before
+    merge = definitions: promise ({ inputs }: builtins.concatLists definitions ++ inputs.foo.some-option); # after
+  };
+}
+```
+
+Use of `mergeFunc` will throw an error, as functions under `adios.merge` are moved to the new format - and testing for
+the old/new format in a `mergeFunc` would require a `functionArgs` heuristic.
+
 # `merge` moved
 
 The collection of functions under `adios.lib.merge` have been moved to `adios.merge`. This makes them easier to

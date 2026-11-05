@@ -102,6 +102,12 @@ in
     This is because the function really sets ordering info, not priority,
     and we may wish to add a withPrio function in the future'';
 
+  mergeFuncError = throw ''
+    option defined 'mergeFunc', but this is deprecated in favor of 'merge'.
+
+    see the lladios changelog for rationale and a migration guide:
+    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#mergefunc-deprecated'';
+
   mkMissingParamsError =
     self: errorContext: options: params:
     let
