@@ -1,7 +1,7 @@
 # Installation
 
 To access the `adios` attribute set, use your favorite pinning tool, and import the root
-of this repo. With flakes, it is more idiomatic to use this repo's `adios` flake output.
+of this repo. With flakes, it is more idiomatic to use the `adios` flake output.
 
 ```nix
 # Pinning with flakes.
