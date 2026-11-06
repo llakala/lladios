@@ -1,55 +1,95 @@
 # Adios Modules
 
-An adios module definition is an attribute set. Module definitions care about any of the following attributes:
+An Adios module definition is an attribute set. Module definitions care about any of the following attributes:
 
 - [`options`](./options.md) - what users of the module are able to modify.
-- [`result`](./result.md) - how the module transforms the options and inputs into the end result.
-- [`modules`](./child-modules.md) - child modules of this module. Determines the way `inputs` are threaded.
 - [`inputs`](./inputs.md) - the modules this module depends on.
+- [`result`](./result.md) - declares the value to be returned when evaluating the module.
+- [`modules`](./child-modules.md) - child modules of this module.
 - [`mutations`](./mutations.md) - how this module is able to modify other modules.
 - [`assertions`](./assertions.md) - statements that this module declares must be true.
 
-Any other attributes may also be present (other than `__functor`), and adios will ignore them. A few conventions:
+Any other attributes may also be present (other than `__functor`), and Adios will ignore them during evaluation. A few
+conventions:
 
-- `name` - the title of the module. in older versions of adios, this was significant; that is no longer the case.
 - `meta` - additional information about the module.
 - `tests` - declarations that verify that the module is working properly.
 
-## Loading Modules
+## Declaring Modules
 
-Once a module definition is established, it can be converted into a *loaded* module by using the `adios` functor:
+A module definition can be declared inline like so:
 
 ```nix
-adios {
-  options = {
-    foo = {
-      type = adios.types.string;
-      default = "World";
+let
+  module = {
+    options.some-option.type = adios.types.int;
+    result = adios.promise ({ options }: options.some-option);
+    modules.some-child = {
+      result = null;
     };
   };
+in
+# evaluate the module with adios (see the next section)
+```
 
-  result = promise ({ options }: "Hello ${location}!")
-} {}
-# -> a loaded module
+However, this doesn't scale very well, and requires a lot of `adios.$foo`. For this reason, Adios provides a convenience
+function to load a set of modules from some directory.
+
+```nix
+let
+  # root module that defines some set of children
+  root = {
+    modules = adios.lib.importModules { directory = ./modules; };
+  };
+in
+# ...
+```
+
+See the documentation on [importModules](../lib/importModules.md). Most examples will be given with the assumption that
+`importModules` is used.
+
+## Loading Modules
+
+Once module(s) are defined, they can be _evaluated_ by Adios by using the `adios` functor.
+
+For a single module:
+```nix
+let
+  module = ...;
+  evaluatedModule = adios module {};
+in
+# returns the module to be called
+module
+```
+
+Or for a set of modules:
+```nix
+let
+  root = ...;
+  tree = adios root {};
+in
+# returns a set of callable modules
+tree.modules
 ```
 
 ## Calling Modules
 
-After a module is loaded, it can be *called* by supplying it with an attribute set.
+After a module is evaluated, it can be *called* by supplying it with an attribute set.
 
+For a single module:
 ```nix
 let
-  module = adios {
-    options = {
-      foo = {
-        type = adios.types.string;
-        default = "World";
-      };
-    };
-
-    result = promise ({ options }: "Hello ${location}!")
-  } {};
+  module = ...;
+  evaluatedModule = adios module {};
 in
-  module { location = "Universe"; }
-# -> "Hello Universe!"
+module { some-option = 1; }
+```
+
+For a set of modules:
+```nix
+let
+  root = ...;
+  tree = adios root {};
+in
+tree.modules.some-module { some-option = 1; }
 ```
