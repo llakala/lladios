@@ -28,6 +28,7 @@ let
         defaultFunc = function; # deprecated
         mutatorType = type; # deprecated
         mergeFunc = function;
+        merge = function;
         mutators = listOf string;
         example = any;
       }).override
@@ -38,14 +39,16 @@ let
           verify =
             option:
             option ? type
-            # if mutators are set, then these must be
-            && (!option ? mutators || option ? mergeFunc);
+            # if mutators are set, then merge XOR mergeFunc must be set
+            && (!option ? mutators || (option ? merge != option ? mergeFunc));
           explain =
             option:
             if !option ? type then
               "missing member 'type'"
+            else if !option ? merge && !option ? mergeFunc then
+              "if 'mutators' are specified, 'merge' must be as well"
             else
-              "if 'mutators' are specified, 'mergeFunc' must be as well";
+              "'merge' and 'mergeFunc' are disjoint, and 'mergeFunc' is deprecated";
         };
 
     subOptions = struct "subOptions" {
