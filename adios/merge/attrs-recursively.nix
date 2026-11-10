@@ -7,8 +7,6 @@ let
     isAttrs
     length
     ;
-  isDerivation = value: (value.type or null) == "derivation";
-
 in
 definitions:
 let
@@ -16,7 +14,7 @@ let
     key: values:
     if length values == 1 then
       head values
-    else if all (value: isAttrs value && !isDerivation value) values then
+    else if all (value: isAttrs value && value.type or null != "derivation") values then
       recurse values
     else
       throw ''
