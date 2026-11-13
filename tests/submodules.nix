@@ -28,6 +28,6 @@
       };
       result = promise ({ options }: options.test);
     };
-    expectedError.msg = "in struct 'subOptions': keys \\['default', 'type'\\] are unrecognized, expected keys are \\['description', 'example', 'options'\\]";
+    expectedError.msg = "in struct 'subOptions': keys \\['default','type'\\] are unrecognized, expected keys are \\['description','example','options'\\]";
   };
 }

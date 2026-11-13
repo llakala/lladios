@@ -10,34 +10,70 @@ Named after the [little penguin](https://www.doc.govt.nz/nature/native-animals/b
   - Polymorphic types (`union`, `attrsOf`, etc)
   - Struct types
 
-# Basic usage
+# Usage
 
-## Checking (throws on error)
+## Defining types
 
-Korora is primarily intended to wrap around some value with the `check`
-attribute:
+Korora exposes a set of basic types and several polymorphic types. This API
+should be powerful enough for most purposes.
 
 ```nix
-{ korora }:
+{
+  t1 = types.int;
+  t2 = types.attrsOf types.int;
+  t3 = types.either (types.attrsOf types.int) (types.listOf types.bool);
+  t4 = types.struct "someStructName" {
+    a = types.path;
+    b = types.optionalAttr types.bool;
+    c = types.listOf (types.nullOr types.string);
+  };
+  t5 = types.enum "someEnumName" [
+    "a"
+    null
+    28
+    [ 1 8 15 ]
+  ];
+}
+```
+
+See also the documentation on `types.new` for declaring custom types.
+
+# Calling types yourself
+
+Korora is primarily intended for usage within Adios, where typechecks are
+automatically run for module options. However, Korora can be used in other
+contexts as a generic typing library for Nix. To do this, one should be
+familar with the API exposed by a type.
+
+## Checking a value (throws on error)
+
+Korora types expose a `check` function. This is the attribute used by Adios,
+and is likely to fit most usecases.
+
+```nix
 let
-  t = korora.string;
+  t = types.string;
   value = 1;
 in
 t.check value
 ```
 
-On success, `check` returns the value that was passed in.
-On failure, it throws an error message.
+On success, `check` returns the input value `v`. If the type had apply
+semantics, it instead returns the result of `apply v`.
+
+On failure, `check` throws an error message, using the type's `explain`
+function if it was defined.
 
 ## Inspecting (doesn't throw on error)
 
-For cases where it doesn't make sense to throw, the `inspect` attribute can be
-used to determine whether a typecheck passes:
+For cases where it doesn't make sense to throw (such as testing), the
+`inspect` attribute can be used to determine whether a typecheck passes. This
+is currently an implementation detail for testing Korora, and it may change in
+the future.
 
 ```nix
-{ korora }:
 let
-  t = korora.string;
+  t = types.string;
   value = 1;
   error = t.inspect value;
 in
@@ -49,42 +85,122 @@ else
 
 On success, `inspect` returns null. On failure, it returns an error message as a string.
 
-## Checking status and rationale separately
+## Other attributes
 
-For performance reasons, both `check` and `inspect` are implemented in terms
-of two separate internal functions - `verify` and `explain`.
-
-```nix
-{ korora }:
-let
-  t = korora.string;
-  value = 1;
-in
-if t.verify value then
-  # handle success case
-else
-  let
-    error = t.explain value;
-  in
-  # use the error message however you wish
-```
-
-`verify` returns true/false, which returns whether the typecheck passed.
-`explain` returns a string representing _why_ the typecheck failed. This
-function should only be called if `verify value == false`.
-
-This allows polymorphic types to be very fast, as they only need to call the
-`verify` functions of subtypes. `explain` is only called recursively if the
-top-level type fails.
-
-# Examples
-For usage examples, see [tests.nix](./tests.nix).
+Types also expose the attributes used to define them - `name`, `verify`, `explain`,
+and `apply`. These are useful when creating a custom polymorphic type. See the
+`types.new` documentation for examples of using these attrbutes.
 
 # Reference
 
 ## `types.new`
 
 Declare a custom type.
+
+## Examples
+
+```nix
+{
+  t1 = types.new {
+    name = "positiveInteger";
+    # verify is called with some value, and returns whether the typecheck
+    # passed
+    verify = v: isInt v && v >= 0;
+    apply = null; # return the input value upon passing
+  };
+  t2 = types.new {
+    name = "nonEmptyString";
+    verify = v: isString v && length v != 0;
+    apply = null;
+    # return a custom error message when the typecheck fails
+    explain =
+      v:
+      if !isString v then
+        "value was a(n) ${typeOf v} instead of a string"
+      else
+        "value was an empty string";
+  };
+  t3 = types.new {
+    name = "intMerger";
+    verify = v: isList v && all isInt v;
+    # return the integers summed together when v passes `verify`
+    apply = v: foldl' (acc: v: acc + v) 0 list;
+  };
+  # polymorphic type
+  t4 =
+    t:
+    let
+      name = "singleton<${t.name}>";
+      # for performance, only lookup the attributes once
+      inherit (t) verify apply explain;
+    in
+    types.new {
+      inherit name;
+      verify = list: isList list && length list == 1 && verify (head list);
+      # propagate the subtype's apply function if it's defined. if not, set
+      # `apply = null` to prevent any overhead.
+      apply = if apply == null then null else v: apply (head v);
+      explain =
+        v:
+        if !isList v then
+          "in type '${name}': value was expected to be a list, but was a(n) '${typeOf v}'"
+        else if length v != 1 then
+          "in type '${name}': list was of length '${length v}', but was expected to be of length 1"
+        else
+          "in type '${name}': in element: '${explain (head v)}'";
+    };
+}
+```
+
+## Overriding types
+
+Recursive types can trigger infinite recursion for two reasons:
+
+1. The name of the type recursed into itself
+2. The subtypes were checked for apply semantics, which recursed back into the type itself
+
+To fix these cycles, `<type>.override` can be used:
+
+```nix
+let
+  recursiveType = types.attrsOf (
+    types.either types.string (
+      recursiveType.override {
+        name = "self";
+        apply = null;
+      }
+    )
+  );
+in
+recursiveType.check {
+  a = "demo";
+  b.c = "strings";
+}
+```
+
+If a type _does_ have apply semantics, simply setting `apply` to a function will prevent the infinite recursion.
+
+```nix
+let
+  recursiveType = types.struct "recursive" {
+    signed = types.new {
+      name = "signer"; # signs the attrset as checked
+      verify = builtins.isAttrs;
+      apply = v: v // { checked = true; };
+    };
+    self = types.optionalAttr (
+      recursiveType.override {
+        # no need to override name here
+        apply = v: recursiveType.apply v;
+      }
+    );
+  };
+in
+recursiveType.check {
+  signed = {};
+  self.signed = {};
+}
+```
 
 structured function argument
 
@@ -95,6 +211,10 @@ structured function argument
   `verify`
 
   : Verification function. Returns true/false representing a success/failure.
+
+  `apply`
+
+  : Function to "apply" the type when it passes. Only necessary when a type has apply semantics. For basic types, set this to null.
 
   `explain`
 
@@ -292,33 +412,6 @@ for types that are checked very often.
 : And t2
 
 
-## `types.rename`
-
-rename<name, type>
-
-Because some polymorphic types such as attrsOf inherits names from it's
-sub-types we need to erase the name to not cause infinite recursion.
-
-#### Example:
-```nix
-myType = types.attrsOf (
-  types.rename "eitherType" (types.union [
-    types.string
-    myType
-  ])
-);
-```
-
-`name`
-
-: Function argument
-
-
-`type`
-
-: Function argument
-
-
 ## `types.struct`
 
 struct<name, members...>
@@ -417,8 +510,6 @@ For example:
   verify = v: v ? requiredAttribute;
 }
 ```
-
-#### Function signature
 
 ## `types.optionalAttr`
 
