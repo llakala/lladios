@@ -342,6 +342,7 @@ lib.fix (
           types.new {
             name = "positive";
             verify = v: v >= 0;
+            apply = null;
           }
         );
       in
@@ -667,7 +668,7 @@ lib.fix (
       struct =
         let
           recursive = types.struct "recursive" {
-            children = types.optionalAttr (types.attrsOf recursive);
+            children = types.optionalAttr (types.attrsOf (types.rename "self" recursive));
           };
         in
         {
