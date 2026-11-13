@@ -10,34 +10,111 @@
     - Polymorphic types (`union`, `attrsOf`, etc)
     - Struct types
 
-  # Basic usage
+  # Usage
 
-  ## Checking (throws on error)
+  ## Defining types
 
-  Korora is primarily intended to wrap around some value with the `check`
-  attribute:
+  Korora exposes a set of basic types and several polymorphic types. This API
+  should be powerful enough for most purposes.
 
   ```nix
-  { korora }:
+  { types, ... }:
+  {
+    t1 = types.int;
+    t2 = types.attrsOf types.int;
+    t3 = types.either (types.attrsOf types.int) (types.listOf types.bool);
+    t4 = types.struct "someStructName" {
+      a = types.path;
+      b = types.optionalAttr types.bool;
+      c = types.listOf (types.nullOr types.string);
+    };
+    t5 = types.enum "someEnumName" [
+      "a"
+      null
+      28
+      [ 1 8 15 ]
+    ];
+  }
+  ```
+
+  ## Creating custom types
+
+  If your type cannot be expressed with the set of base types, a custom type can
+  be defined using `types.new`.
+
+  ```nix
+  { types, ... }:
+  {
+    t1 = types.new {
+      name = "positiveInteger";
+      # verify is called with some value, and returns whether the typecheck
+      # passed
+      verify = v: isInt v && v >= 0;
+      apply = null; # return the input value upon passing
+    };
+    t2 = types.new {
+      name = "nonEmptyString";
+      verify = v: isString v && length v != 0;
+      apply = null;
+      explain =
+        v:
+        # return a custom error message when the typecheck fails
+        if !isString v then
+          "value was a(n) ${typeOf v} instead of a string"
+        else
+          "value was an empty string";
+    };
+    t3 = types.new {
+      # if the value is a list of integers, pass the typecheck and return the
+      # integers summed together
+      name = "intMerger";
+      verify = v: isList v && all isInt v;
+      # return a new value when v passes the `verify` function
+      apply = v: foldl' (acc: v: acc + v) 0 list;
+    };
+  }
+  ```
+
+  See also the documentation on `types.new`.
+
+  # Calling types yourself
+
+  Korora is primarily intended for usage within Adios, where typechecks will be
+  automatically applied. However, Korora can be used as a generic typing library
+  for Nix in other contexts. To do this, one should be familar with the API
+  exposed by a type.
+
+  ## Checking a value (throws on error)
+
+  Korora types expose a `check` function. This is the attribute used by Adios,
+  and is likely to fit most usecases.
+
+  ```nix
+  { types, ... }:
   let
-    t = korora.string;
+    t = types.string;
     value = 1;
   in
   t.check value
   ```
 
-  On success, `check` returns the value that was passed in.
-  On failure, it throws an error message.
+  On success, `check` returns the input value `v`. If the type had apply
+  semantics, it instead returns the result of `apply v`.
+
+  On failure, `check` throws an error message, using the type's `explain`
+  function if it was defined.
 
   ## Inspecting (doesn't throw on error)
 
-  For cases where it doesn't make sense to throw, the `inspect` attribute can be
-  used to determine whether a typecheck passes:
+  For cases where it doesn't make sense to throw (such as testing), the
+  `inspect` attribute can be used to determine whether a typecheck passes. This
+  is currently an implementation detail for testing Korora, and it may change in
+  the future.
 
   ```nix
-  { korora }:
+  { types, ... }:
   let
-    t = korora.string;
+    t = types.string;
     value = 1;
     error = t.inspect value;
   in
@@ -49,33 +126,35 @@
 
   On success, `inspect` returns null. On failure, it returns an error message as a string.
 
-  ## Checking status and rationale separately
+  ## Other attributes
 
-  For performance reasons, both `check` and `inspect` are implemented in terms
-  of two separate internal functions - `verify` and `explain`.
+  Types also expose the attributes used to define them - `name`, `verify`, `explain`,
+  and `apply`. These are useful when creating a custom polymorphic type.
 
   ```nix
-  { korora }:
-  let
-    t = korora.string;
-    value = 1;
-  in
-  if t.verify value then
-    # handle success case
-  else
+  singleton =
+    t:
     let
-      error = t.explain value;
+      name = "singleton<${t.name}>";
+      # for performance, only lookup the attributes once
+      inherit (t) verify apply explain;
     in
-    # use the error message however you wish
+    types.new {
+      inherit name;
+      verify = list: isList list && length list == 1 && verify (head list);
+      # call the apply function if it's defined. if not, set `apply = null` to
+      # prevent any overhead
+      apply = if apply == null then null else v: apply (head v);
+      explain =
+        v:
+        if !isList v then
+          "in type '${name}': value was expected to be a list, but was a(n) '${typeOf v}'"
+        else if length v != 1 then
+          "in type '${name}': list was of length '${length v}', but was expected to be of length 1"
+        else
+          "in type '${name}': in element: '${explain (head v)}'";
+    };
   ```
-
-  `verify` returns true/false, which returns whether the typecheck passed.
-  `explain` returns a string representing _why_ the typecheck failed. This
-  function should only be called if `verify value == false`.
-
-  This allows polymorphic types to be very fast, as they only need to call the
-  `verify` functions of subtypes. `explain` is only called recursively if the
-  top-level type fails.
 
   # Examples
   For usage examples, see [tests.nix](./tests.nix).
@@ -88,10 +167,13 @@ let
     any
     attrNames
     attrValues
+    catAttrs
     concatStringsSep
     elem
     elemAt
+    filter
     genList
+    head
     isAttrs
     isBool
     isFloat
@@ -104,10 +186,14 @@ let
     mapAttrs
     partition
     seq
+    trace
     ;
   warn = builtins.warn or builtins.trace;
 
-  joinKeys = list: concatStringsSep ", " (map (e: "'${e}'") list);
+  concatCommas = concatStringsSep ",";
+  getNames = catAttrs "name";
+  joinKeys = list: concatCommas (map (e: "'${e}'") list);
+  joinTypes = list: concatCommas (getNames list);
 
   toPretty = import ./toPretty.nix { indent = "    "; };
 
@@ -187,15 +273,19 @@ let
     These functions have been deprecated in favor of `types.new`.
 
     See the lladios changelog for rationale and a migration guide:
-    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#new-typedef-function
-  '' null;
+    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#new-typedef-function'' null;
   nullWarning = warn ''
     At least one of your Adios typechecks returned null.
     On success, typechecks should now return a string.
 
     See the lladios changelog for rationale and a migration guide:
-    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#new-typedef-function
-  '' null;
+    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#new-typedef-function'' null;
+  noApplyWarning = trace ''
+    At least one of your Adios types (defined via `types.new` didn't specify an `apply` attribute.
+    'apply' allows types to return a new value upon passing. For types without apply semantics, it should be set to null.
+
+    See the lladios changelog for more info:
+    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#apply-semantics'' null;
 in
 fix (self: {
 
@@ -211,20 +301,41 @@ fix (self: {
       # Verification function.
       # Returns true/false representing a success/failure.
       verify,
+      # Function to "apply" the type when it passes. Only necessary when a type
+      # has apply semantics. For basic types, set this to null.
+      apply ? seq noApplyWarning (warn "no 'apply' attribute in type '${name}'" null),
       # Function to generate an error message when the verify function fails.
       explain ? notOfType name,
     }:
     {
-      inherit name verify explain;
-      inspect = v: if verify v then null else explain v;
-      check =
-        v:
-        if verify v == true then
-          v
-        else if verify v == null then
-          seq nullWarning v
+      inherit
+        name
+        verify
+        explain
+        apply
+        ;
+      inspect =
+        if apply == null then
+          v: if verify v then null else explain v
         else
-          throw (explain v);
+          v: if verify v then seq (apply v) null else explain v;
+      check =
+        if apply == null then
+          v:
+          if verify v == true then
+            v
+          else if verify v == null then
+            seq nullWarning v
+          else
+            throw (explain v)
+        else
+          v:
+          if verify v == true then
+            apply v
+          else if verify v == null then
+            seq nullWarning v
+          else
+            throw (explain v);
     };
 
   /*
@@ -283,6 +394,7 @@ fix (self: {
   string = self.new {
     name = "string";
     verify = isString;
+    apply = null;
   };
 
   /*
@@ -291,6 +403,7 @@ fix (self: {
   any = self.new {
     name = "any";
     verify = _: true;
+    apply = null;
   };
 
   /*
@@ -299,6 +412,7 @@ fix (self: {
   never = self.new {
     name = "never";
     verify = _: false;
+    apply = null;
   };
 
   /*
@@ -307,6 +421,7 @@ fix (self: {
   int = self.new {
     name = "int";
     verify = isInt;
+    apply = null;
   };
 
   /*
@@ -315,6 +430,7 @@ fix (self: {
   float = self.new {
     name = "float";
     verify = isFloat;
+    apply = null;
   };
 
   /*
@@ -323,6 +439,7 @@ fix (self: {
   number = self.new {
     name = "number";
     verify = v: isInt v || isFloat v;
+    apply = null;
   };
 
   /*
@@ -331,6 +448,7 @@ fix (self: {
   bool = self.new {
     name = "bool";
     verify = isBool;
+    apply = null;
   };
 
   /*
@@ -339,6 +457,7 @@ fix (self: {
   null = self.new {
     name = "null";
     verify = isNull;
+    apply = null;
   };
 
   /*
@@ -347,6 +466,7 @@ fix (self: {
   attrs = self.new {
     name = "attrs";
     verify = isAttrs;
+    apply = null;
   };
 
   /*
@@ -355,6 +475,7 @@ fix (self: {
   list = self.new {
     name = "list";
     verify = isList;
+    apply = null;
   };
 
   /*
@@ -363,6 +484,7 @@ fix (self: {
   function = self.new {
     name = "function";
     verify = isFunction;
+    apply = null;
   };
 
   /*
@@ -371,6 +493,7 @@ fix (self: {
   path = self.new {
     name = "path";
     verify = isPath;
+    apply = null;
   };
 
   /*
@@ -380,6 +503,7 @@ fix (self: {
   pathLike = self.new {
     name = "pathLike";
     verify = v: isPath v || v.type or null == "derivation" || isString v;
+    apply = null;
   };
 
   /*
@@ -388,6 +512,7 @@ fix (self: {
   derivation = self.new {
     name = "derivation";
     verify = v: v.type or null == "derivation";
+    apply = null;
   };
 
   # Polymorphic types
@@ -398,6 +523,7 @@ fix (self: {
   type = self.new {
     name = "type";
     verify = v: v ? name && isString v.name && v ? verify && isFunction v.verify;
+    apply = null;
   };
 
   optional = warn "Adios type 'optional<t>' has been renamed to 'nullOr<t>'" self.nullOr;
@@ -409,11 +535,14 @@ fix (self: {
     # Null or t
     t:
     let
-      inherit (t) verify;
+      inherit (t) verify apply;
     in
     self.new {
       name = "nullOr<${t.name}>";
       verify = v: v == null || verify v;
+      # `t` could accept null values and provide apply semantics - so must
+      # reverify
+      apply = if apply == null then null else v: if verify v then apply v else v;
     };
 
   /*
@@ -425,10 +554,12 @@ fix (self: {
     let
       name = "listOf<${t.name}>";
       verifyAll = all t.verify;
+      apply = t.apply;
     in
     self.new {
       inherit name;
       verify = list: isList list && verifyAll list;
+      apply = if apply == null then null else map apply;
       explain =
         list:
         "in type '${name}': "
@@ -449,10 +580,12 @@ fix (self: {
     let
       name = "attrsOf<${t.name}>";
       verifyAll = all t.verify;
+      apply = t.apply;
     in
     self.new {
       inherit name;
       verify = attrs: isAttrs attrs && verifyAll (attrValues attrs);
+      apply = if apply == null then null else mapAttrs (_: apply);
       explain =
         attrs:
         "in type '${name}': "
@@ -474,12 +607,44 @@ fix (self: {
     types:
     assert isList types;
     let
-      verifiers = map (t: t.verify) types;
+      name = "union<${joinTypes types}>";
+      partitioned = partition (t: t.apply == null) types;
+      verifiers = map (t: t.verify) (
+        # To prevent types with apply semantics from accepting early and
+        # throwing later, a subtype with apply semantics must be checked last
+        if partitioned.wrong == [ ] then types else partitioned.right ++ partitioned.wrong
+      );
     in
     self.new {
-      name = "union<${concatStringsSep "," (map (t: t.name) types)}>";
-      verify = v: any (verifier: verifier v) verifiers;
+      inherit name;
+      verify =
+        # Putting the error down here makes the type shape-stable, and helps to
+        # prevent some infinite recursion errors
+        if length partitioned.wrong > 1 then
+          throw ''
+            type '${name}' specified multiple types with apply semantics.
+
+            These types were: <${joinTypes partitioned.wrong}>
+
+            'types.either' only allows one type to provide apply semantics. This
+            prevents an edge case where a type provides a lax verification function,
+            and then throws in the apply stage.
+
+            If you're sure that this union is safe, define a custom type that
+            applies the first type to pass verification.''
+        else
+          v: any (verifier: verifier v) verifiers;
       # TODO: custom error message
+      apply =
+        if partitioned.wrong == [ ] then
+          null
+        else
+          # Apply the applier if necessary. This only re-verifies one type,
+          # rather than all of them.
+          let
+            inherit (head partitioned.wrong) verify apply;
+          in
+          v: if verify v then apply v else v;
     };
 
   /*
@@ -494,28 +659,69 @@ fix (self: {
     # Or t2
     t2:
     let
+      name = "either<${t1.name},${t2.name}>";
       verify1 = t1.verify;
       verify2 = t2.verify;
+      apply1 = t1.apply;
+      apply2 = t2.apply;
     in
     self.new {
-      name = "either<${t1.name},${t2.name}>";
-      verify = v: verify1 v || verify2 v;
+      inherit name;
+      verify =
+        if apply1 != null && apply2 != null then
+          throw ''
+            type '${name}' had both types provide apply semantics.
+
+            'types.either' only allows one type to provide apply semantics. This
+            prevents an edge case where a type provides a lax verification function,
+            and then throws in the apply stage.
+
+            If you're sure that this union is safe, define a custom type that
+            applies the first type to pass verification.''
+        else if apply1 == null then
+          # Verify the type _without_ apply semantics first, to prevent an early
+          # accept that throws later
+          v: verify1 v || verify2 v
+        else
+          v: verify2 v || verify1 v;
+      apply =
+        if apply1 == apply2 then
+          null
+        else if apply1 == null then
+          v: if verify1 v then v else apply2 v
+        else
+          v: if verify2 v then v else apply1 v;
     };
 
-  /*
-    intersection<types...>
-  */
+  # intersection<types...>
   intersection =
     # All of <t>
     types:
     assert isList types;
     let
       verifiers = map (t: t.verify) types;
+      appliers = filter (t: t.apply != null) types;
+      name = "intersection<${joinTypes types}>";
     in
     self.new {
-      name = "intersection<${concatStringsSep "," (map (t: t.name) types)}>";
-      verify = v: all (verifier: verifier v) verifiers;
+      inherit name;
+      verify =
+        if length appliers > 1 then
+          throw ''
+            type '${name}' tried to intersect multiple types with 'apply' semantics.
+
+            These types were: <${joinTypes appliers}>
+
+            To prevent unintuitive behavior, 'types.intersection' only allows a single
+            type to have apply semantics. This preserves numerous properties, like order
+            not mattering.
+
+            If you do want multiple application steps to be performed, write a custom type
+            that performs them in the desired order.''
+        else
+          v: all (verifier: verifier v) verifiers;
       # TODO: custom explain message
+      apply = if appliers == [ ] then null else (head appliers).apply;
     };
 
   /*
@@ -532,10 +738,32 @@ fix (self: {
     let
       verify1 = t1.verify;
       verify2 = t2.verify;
+      apply1 = t1.apply;
+      apply2 = t2.apply;
+      name = "all<${t1.name},${t2.name}>";
     in
     self.new {
-      name = "all<${t1.name},${t2.name}>";
-      verify = v: verify1 v && verify2 v;
+      inherit name;
+      verify =
+        if apply1 != null && apply2 != null then
+          throw ''
+            type '${name}' had both of its types specify 'apply' semantics.
+
+            To prevent unintuitive behavior, 'types.both' only allows a single type to
+            have apply semantics. This preserves numerous properties, like order not
+            mattering.
+
+            If you do want both application steps to be performed, write a custom type
+            that applies one after the other in the desired order.''
+        else
+          v: verify1 v && verify2 v;
+      apply =
+        if apply1 == apply2 then
+          null
+        else if apply1 == null then
+          apply1
+        else
+          apply2;
     };
 
   /*
@@ -553,13 +781,21 @@ fix (self: {
       ])
     );
     ```
+
+    Note that this adds a slight amount of overhead (a single function call) to
+    the type, by always including an `apply` function. This is done to prevent
+    infinite recursion.
   */
   rename =
     name: type:
+    let
+      inherit (type) apply;
+    in
     # TODO: properly handle optionalAttr
     self.new {
       inherit name;
       inherit (type) verify explain;
+      apply = v: if apply == null then v else apply v;
     };
 
   /*
@@ -679,7 +915,7 @@ fix (self: {
             ++ map (
               name:
               let
-                inherit (types.${name}) verify;
+                verify = types.${name}.verify;
               in
               # optional types don't have to be specified
               v: !v ? ${name} || verify v.${name}
@@ -687,7 +923,7 @@ fix (self: {
             ++ map (
               name:
               let
-                inherit (types.${name}) verify;
+                verify = types.${name}.verify;
               in
               if unknown then
                 v: v ? ${name} && verify v.${name}
@@ -736,6 +972,14 @@ fix (self: {
         self.new {
           name = "struct<${name}>";
           verify = (if total then verifyTotalStruct else verifyNonTotalStruct) types total unknown verify;
+          apply =
+            if all (t: t.apply == null) (attrValues types) then
+              null
+            else
+              let
+                appliers = mapAttrs (_: type: type.apply) types;
+              in
+              mapAttrs (name: if appliers.${name} or null == null then v: v else appliers.${name});
           explain =
             v:
             let
@@ -777,7 +1021,7 @@ fix (self: {
     t:
     self.new {
       name = "optionalAttr<${t.name}>";
-      inherit (t) verify;
+      inherit (t) verify apply;
     }
     // {
       __optional = true;
@@ -797,6 +1041,7 @@ fix (self: {
     self.new {
       inherit name;
       verify = v: elem v elems;
+      apply = null;
       explain = v: "in type '${name}': '${toPretty v}' is not a member of the enum";
     };
 
@@ -808,7 +1053,7 @@ fix (self: {
     types:
     assert isList types;
     let
-      name = "tuple<${concatStringsSep "," (map (t: t.name) types)}>";
+      name = "tuple<${joinTypes types}>";
       len = length types;
       verifiers = genList (
         i:
@@ -821,6 +1066,18 @@ fix (self: {
     self.new {
       inherit name;
       verify = v: isList v && length v == len && all (verifier: verifier v) verifiers;
+      apply =
+        if all (t: t.apply == null) types then
+          null
+        else
+          v:
+          genList (
+            i:
+            let
+              apply = (elemAt types i).apply;
+            in
+            if apply == null then elemAt v i else apply (elemAt v i)
+          ) len;
       explain =
         tuple:
         if !isList tuple then
@@ -847,26 +1104,27 @@ fix (self: {
   defun =
     name: paramTypes: resultType:
     let
-      verifyFuncs = map (type: type.verify) paramTypes;
       len = length paramTypes;
       recurse =
         i: acc:
         if i != len then
           # more parameters need to be passed to the function
           let
-            verify = elemAt verifyFuncs i;
+            type = elemAt paramTypes i;
           in
-          value:
-          if verify value then
-            recurse (i + 1) (acc value)
+          if type.apply != null then
+            throw "types.defun doesn't support apply semantics yet, but they were used in param type '${type.name}"
           else
-            let
-              type = elemAt paramTypes i;
-            in
-            throw "in argument ${toString i}: ${type.explain value}"
+            value:
+            if type.verify value then
+              recurse (i + 1) (acc value)
+            else
+              throw "in argument ${toString i}: ${type.explain value}"
         else
         # all parameters have been passed, check return value
-        if resultType.verify acc then
+        if resultType.apply != null then
+          throw "types.defun doesn't support apply semantics yet, but they were used in result type '${resultType.name}"
+        else if resultType.verify acc then
           acc
         else
           throw "in return type: ${resultType.explain acc}";

@@ -70,6 +70,7 @@ let
       new {
         name = "option";
         verify = v: if v ? options then verifySubOptions v else verifyNormalOption v;
+        apply = null;
         explain = v: if v ? options then explainSubOptions v else explainNormalOption v;
       };
 
@@ -80,11 +81,13 @@ let
         path = korora.new {
           name = "pathstring";
           verify = isString;
+          apply = null;
         };
         options = attrs;
         from = korora.new {
           name = "from";
           verify = isFunction;
+          apply = null;
         };
       }).override
         {

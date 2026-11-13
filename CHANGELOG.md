@@ -1,5 +1,47 @@
 Any new features or breaking changes will be listed here.
 
+# Apply semantics
+
+Adios's type system ("Korora") now allows types to return a new value upon passing. This is referred to as "apply
+semantics".
+
+For example:
+
+```nix
+types.new {
+  name = "signer"; # "signs" attrsets after passing
+  verify = builtins.isAttrs;
+  apply = v: v // { checked = true };
+}
+```
+
+This will allow the creation of more powerful types in the future. Apply semantics are designed to be zero-cost if you
+don't use them (where "zero-cost" means that any cost is only paid on type construction).
+
+When calling `types.new`, the `apply` attribute is now required, and leaving it unset will trigger a warning. This is to
+prevent bugs - a polymorphic type that _doesn't_ propagate the `apply` function of its subtypes will have broken
+behavior. If your custom type is non-polymorphic, simply set `apply = null`. See the [Korora
+documentation](./korora/README.md) for more info.
+
+Due to laziness issues with `apply` propagation, some recursive types will now infinitely recurse when they didn't
+before. For example:
+
+```nix
+  recursive = types.struct "recursive" {
+    children = types.optionalAttr (types.attrsOf recursive);
+  };
+```
+
+To fix this, `types.rename` can be used.
+
+```nix
+  recursive = types.struct "recursive" {
+    children = types.optionalAttr (types.attrsOf (types.rename "self" recursive));
+  };
+```
+
+See the documentation of `types.rename` in the Korora docs for more info.
+
 # `mergeFunc` deprecated
 
 The `mergeFunc` attribute is deprecated in favor of the new `merge` attribute. This attribute comes with a few behavior
