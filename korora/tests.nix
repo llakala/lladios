@@ -23,8 +23,11 @@ let
     typeError = true;
     toPretty = true;
     optional = true;
+    # FIXME: one of the commits touches this, need to write the tests
     typedef = true;
     typedef' = true;
+    # TODO: write tests for the pre-apply version of this especially and test parity
+    # TODO: write tests for post-apply scheme
     new = true;
     rename = true;
   };
@@ -35,16 +38,27 @@ let
       assert !tests ? coverage;
       tests
       // {
-        coverage = lib.mapAttrs' (n: _v: {
-          name = "test" + (capitalise n);
-          value = {
-            expr = tests ? ${n} || untestedTypes ? ${n};
-            expected = true;
+        coverage =
+          let
+            coverageFor =
+              base:
+              lib.mapAttrs' (
+                n: _v: {
+                  name = "test" + (capitalise n);
+                  value = {
+                    expr = base ? ${n} || untestedTypes ? ${n};
+                    expected = true;
+                  };
+                }
+              );
+          in
+          (coverageFor tests public)
+          // {
+            lazy = coverageFor tests.lazy public.lazy;
+            unsafe = coverageFor tests.unsafe public.unsafe;
           };
-        }) public;
       }
     );
-
 in
 lib.fix (
   _self:
@@ -373,6 +387,7 @@ lib.fix (
           expectedError.type = "ThrownError";
         };
 
+        # TODO: is that still true?
         # types with apply semantics are verified last
         testApplyLazy = {
           expr = testApply3.verify 20;
@@ -402,7 +417,6 @@ lib.fix (
           expr = testEither.inspect "hello";
           expected = null;
         };
-
         testSecond = {
           expr = testEither.inspect false;
           expected = null;
@@ -505,6 +519,7 @@ lib.fix (
           expr = testBoth.inspect 5;
           expected = null;
         };
+
         testInvalid1 = {
           expr = testBoth.inspect (-1);
           expected = "value '-1' is not of type 'all<int,positive>'";
@@ -887,6 +902,284 @@ lib.fix (
           };
       };
 
+    lazy = {
+      attrsOf =
+        let
+          lazyAttrsOf = types.lazy.attrsOf types.string;
+        in
+        {
+          testValid = {
+            expr = lazyAttrsOf.lazyInspect {
+              x = "hello";
+            };
+            expected = null;
+          };
+
+          testValidStrict = {
+            expr = lazyAttrsOf.inspect {
+              x = "hello";
+            };
+            expected = null;
+          };
+
+          testInvalidElemLazy = {
+            expr = lazyAttrsOf.lazyInspect {
+              x = 1;
+            };
+            expected = null;
+          };
+
+          testInvalidElemStrict = {
+            # HACK: The apply error message is significantly better than the explain output.
+            # Ideally, they have relative parity.
+            expr = lazyAttrsOf.inspect {
+              x = 1;
+            };
+            # HACK: equivalent multiline version would be much more readable
+            expected = "value '{\n      x = 1;\n    }' is not of type 'lazy.attrsOf<string>'";
+          };
+
+          testInvalidType = {
+            expr = lazyAttrsOf.inspect 1;
+            expected = "value '1' is not of type 'lazy.attrsOf<string>'";
+          };
+        };
+
+      listOf =
+        let
+          lazyListOf = types.lazy.listOf types.string;
+        in
+        {
+          testValid = {
+            expr = lazyListOf.lazyInspect [ "hello" ];
+            expected = null;
+          };
+
+          testValidStrict = {
+            expr = lazyListOf.inspect [ "hello" ];
+            expected = null;
+          };
+
+          testInvalidElemLazy = {
+            expr = lazyListOf.lazyInspect [ 1 ];
+            expected = null;
+          };
+
+          testInvalidElemStrict = {
+            # HACK: The apply error message is significantly better than the explain output.
+            # Ideally, they have relative parity.
+            expr = lazyListOf.inspect [ 1 ];
+            expected = "in type 'lazy.listOf<string>': in element: value '1' is not of type 'string'";
+          };
+
+          testInvalidType = {
+            expr = lazyListOf.lazyInspect 1;
+            expected = "in type 'lazy.listOf<string>': value '1' is not of type 'list'";
+          };
+        };
+    };
+
+    unsafe = {
+      both =
+        let
+          positive = types.new {
+            name = "positive";
+            verify = v: v >= 0;
+            apply = null;
+          };
+          incrementer = types.new {
+            name = "incrementer";
+            verify = v: isInt v || isFloat v;
+            apply = v: v + 1;
+          };
+          intDoubler = types.new {
+            name = "int-doubler";
+            verify = isInt;
+            apply = v: v * 2;
+          };
+
+          safeType = types.both types.int positive;
+          unsafeType = types.unsafe.both types.int positive;
+
+          incrementThenDouble = types.unsafe.both incrementer intDoubler;
+          doubleThenIncrement = types.unsafe.both intDoubler incrementer;
+
+          # TODO: lazy type with mixed lazy-eager value test and all-lazy value test (check appropriate laziness)
+        in
+        {
+          testSafe = {
+            expr = unsafeType.check 2;
+            expected = safeType.check 2;
+          };
+          testSafeInvalid = {
+            expr = unsafeType.inspect (-1);
+            expected = "value '-1' is not of type 'unsafe.all<int,positive>'";
+          };
+
+          testOrdered = {
+            expr = incrementThenDouble.check 2;
+            expected = 6;
+          };
+          testReverseOrdered = {
+            expr = doubleThenIncrement.check 2;
+            expected = 5;
+          };
+
+          testOrderedNotOK = {
+            expr = incrementThenDouble.inspect null;
+            expected = "value 'null' is not of type 'unsafe.all<incrementer,int-doubler>'";
+          };
+        };
+
+      intersection =
+        let
+          struct1 = types.struct "1" {
+            a = types.number;
+          };
+
+          struct2 = types.struct "2" {
+            a = types.int;
+          };
+
+          safeType = types.intersection [
+            struct1
+            struct2
+          ];
+          unsafeType = types.unsafe.intersection [
+            struct1
+            struct2
+          ];
+
+          # TODO: lazy type with mixed lazy-eager value test and all-lazy value test (check appropriate laziness)
+        in
+        {
+          testSafe = {
+            expr = unsafeType.check { a = 1; };
+            expected = safeType.check { a = 1; };
+          };
+
+          testSafeInvalid = {
+            expr = unsafeType.inspect 1;
+            expected = "value '1' is not of type 'unsafe.intersection<struct<1>,struct<2>>'";
+          };
+        };
+
+      either =
+        let
+          incrementer = types.new {
+            name = "incrementer";
+            verify = v: isInt v || isFloat v;
+            apply = v: v + 1;
+          };
+          intDoubler = types.new {
+            name = "int-doubler";
+            verify = isInt;
+            apply = v: v * 2;
+          };
+
+          safeType = types.either types.string types.bool;
+          unsafeType = types.unsafe.either types.string types.bool;
+
+          incrementType = types.unsafe.either incrementer intDoubler;
+          doubleType = types.unsafe.either intDoubler incrementer;
+
+          # TODO: lazy type with appropriate tests of lazyness
+
+          # TODO: early-accept case, for submodule-likes - also put in union tests
+        in
+        {
+          testFirst = {
+            expr = unsafeType.check "hello";
+            expected = safeType.check "hello";
+          };
+          testSecond = {
+            expr = unsafeType.check false;
+            expected = safeType.check false;
+          };
+          testInvalid = {
+            expr = unsafeType.inspect 1;
+            expected = "value '1' is not of type 'unsafe.either<string,bool>'";
+          };
+
+          testOrdered = {
+            expr = incrementType.check 2;
+            expected = 3;
+          };
+          testReverseOrdered = {
+            expr = doubleType.check 2;
+            expected = 4;
+          };
+          testOrderedInvalid = {
+            expr = incrementType.inspect null;
+            expected = "value 'null' is not of type 'unsafe.either<incrementer,int-doubler>'";
+          };
+        };
+
+      union =
+        let
+          incrementer = types.new {
+            name = "incrementer";
+            verify = v: isInt v || isFloat v;
+            apply = v: v + 1;
+          };
+          intDoubler = types.new {
+            name = "int-doubler";
+            verify = isInt;
+            apply = v: v * 2;
+          };
+
+          safeType = types.union [
+            types.string
+            types.bool
+          ];
+          unsafeType = types.unsafe.union [
+            types.string
+            types.bool
+          ];
+
+          incrementType = types.unsafe.union [
+            incrementer
+            intDoubler
+          ];
+          doubleType = types.unsafe.union [
+            intDoubler
+            incrementer
+          ];
+
+          # TODO: lazy type with appropriate tests of lazyness, like either
+          # TODO: submodule type checks, like either
+        in
+        {
+          testFirst = {
+            expr = unsafeType.check "hello";
+            expected = safeType.check "hello";
+          };
+          testSecond = {
+            expr = unsafeType.check false;
+            expected = safeType.check false;
+          };
+
+          testInvalid = {
+            expr = unsafeType.inspect 1;
+            expected = "in type 'unsafe.union<string,bool>': '1' is not a member of the union";
+          };
+
+          testOrdered = {
+            expr = incrementType.check 2;
+            expected = 3;
+          };
+          testReverseOrdered = {
+            expr = doubleType.check 2;
+            expected = 4;
+          };
+
+          testOrderedInvalid = {
+            expr = incrementType.inspect null;
+            expected = "in type 'unsafe.union<incrementer,int-doubler>': 'null' is not a member of the union";
+          };
+        };
+    };
+
     recursiveTypes = {
       struct =
         let
@@ -894,6 +1187,7 @@ lib.fix (
             children = types.optionalAttr (
               types.attrsOf (
                 recursive.override {
+                  name = "recursive";
                   apply = null;
                 }
               )
@@ -911,12 +1205,12 @@ lib.fix (
           };
 
           testNotOK = {
-            expr = recursive.check {
+            expr = recursive.inspect {
               children = {
                 x = "hello";
               };
             };
-            expectedError.type = "ThrownError";
+            expected = "in struct 'recursive': in member 'children': in type 'attrsOf<recursive>': in attribute 'x': in struct 'recursive': value '\"hello\"' is not of type 'attrs'";
           };
         };
 
@@ -977,7 +1271,7 @@ lib.fix (
           };
 
           testNotOK = {
-            expr = type.check {
+            expr = type.inspect {
               foo = "bar";
               baz = {
                 foo = "bar";
@@ -987,9 +1281,132 @@ lib.fix (
                 };
               };
             };
-            expectedError.type = "ThrownError";
+            # HACK: equivalent multiline version would be much more readable
+            expected = "in type 'attrsOf<union<string,self>>': in attribute 'baz': in type 'union<string,self>': '{\n      baz = {\n        foo = \"bar\";\n        int = 1;\n      };\n      foo = \"bar\";\n    }' is not a member of the union";
           };
         };
+
+      # TODO: listOf
+
+      # TODO: test recursive lazyness, test preserving lazyness inside non-lazy types
+
+      lazy = {
+        attrsOf =
+          let
+            lazyAttrsOf = types.lazy.attrsOf (
+              types.either types.string (
+                lazyAttrsOf.override {
+                  name = "self";
+                  # If types.string had apply semantics, we would want to propagate them here (if types.string.strictVerify was successful).
+                  apply = null;
+                }
+              )
+            );
+          in
+          {
+            testValidLazy = {
+              expr = lazyAttrsOf.lazyInspect {
+                foo = "bar";
+                baz = {
+                  foo = "bar";
+                  baz = {
+                    foo = "bar";
+                  };
+                };
+              };
+              expected = null;
+            };
+            testValidStrict = {
+              expr = lazyAttrsOf.inspect {
+                foo = "bar";
+                baz = {
+                  foo = "bar";
+                  baz = {
+                    foo = "bar";
+                  };
+                };
+              };
+              expected = null;
+            };
+
+            testInvalidLazy = {
+              expr = lazyAttrsOf.lazyInspect {
+                foo = "bar";
+                baz = {
+                  foo = "bar";
+                  baz = {
+                    foo = "bar";
+                    int = 1;
+                  };
+                };
+              };
+              expected = null;
+            };
+            testInvalidStrict = {
+              expr = lazyAttrsOf.inspect {
+                foo = "bar";
+                baz = {
+                  foo = "bar";
+                  baz = {
+                    foo = "bar";
+                    baz = 1;
+                  };
+                };
+              };
+              # TODO: better explain
+              expected = "value '{\n      baz = {\n        baz = {\n          baz = 1;\n          foo = \"bar\";\n        };\n        foo = \"bar\";\n      };\n      foo = \"bar\";\n    }' is not of type 'lazy.attrsOf<either<string,self>>'";
+            };
+          };
+
+        # TODO: meaningful apply semantics in lazy and recursive types, both separately and in combination
+        either =
+          let
+            either = types.unsafe.either (types.lazy.attrsOf (
+              either.override {
+                name = "recurse";
+                apply = null;
+              }
+            )) (types.lazy.attrsOf types.string);
+          in
+          {
+            testLazyTypesValid1 = {
+              expr = either.lazyInspect {
+                foo = {
+                  bar = {
+                    baz = "foo";
+                  };
+                };
+              };
+              expected = null;
+            };
+
+            testLazyTypesValid2 = {
+              expr = either.lazyInspect {
+                foo = "bar";
+              };
+              expected = null;
+            };
+
+            testLazyTypesInvalidLazy = {
+              expr = either.lazyInspect {
+                foo = 1;
+              };
+              expected = null;
+            };
+            testLazyTypesInvalidStrict = {
+              expr = either.inspect {
+                foo = 1;
+              };
+              # HACK: equivalent multiline version would be much more readable
+              expected = "value '{\n      foo = 1;\n    }' is not of type 'unsafe.either<lazy.attrsOf<recurse>,lazy.attrsOf<string>>'";
+            };
+
+            testLazyTypesInvalidType = {
+              expr = either.inspect 1;
+              expected = "value '1' is not of type 'unsafe.either<lazy.attrsOf<recurse>,lazy.attrsOf<string>>'";
+            };
+          };
+      };
     };
   }
 )
