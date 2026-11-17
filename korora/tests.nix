@@ -39,7 +39,7 @@ let
 
 in
 lib.fix (
-  self:
+  _self:
   addCoverage types {
     string = {
       testInvalid = {
