@@ -359,16 +359,15 @@ fix (self: {
     # Name of the type as a string
     name:
     # Verification function returning null on success & a string with error message on error.
-    verify:
+    explain:
     seq typedefWarning self.new {
-      inherit name;
+      inherit name explain;
       verify =
         v:
         let
-          result = verify v;
+          result = explain v;
         in
-        if result == true then true else false;
-      explain = verify;
+        result;
     };
 
   /*
