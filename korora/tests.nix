@@ -359,7 +359,7 @@ lib.fix (
 
         testInvalid = {
           expr = testUnion.inspect 1;
-          expected = "value '1' is not of type 'union<string,bool>'";
+          expected = "in type 'union<string,bool>': '1' is not a member of the union";
         };
 
         testApplyValid = {
