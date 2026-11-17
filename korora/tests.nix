@@ -282,7 +282,7 @@ lib.fix (
 
         testInvalid = {
           expr = testUnion.inspect 1;
-          expected = "value '1' is not of type 'union<string,bool>'";
+          expected = "in type 'union<string,bool>': '1' is not a member of the union";
         };
       };
 
@@ -345,6 +345,13 @@ lib.fix (
             apply = null;
           }
         );
+
+        typeWithApply = types.new {
+          name = "1";
+          verify = _: true;
+          apply = v: v;
+        };
+        unsafeBoth = types.both typeWithApply typeWithApply;
       in
       {
         testValid = {
@@ -358,6 +365,11 @@ lib.fix (
         testInvalid2 = {
           expr = testBoth.inspect "no";
           expected = "value '\"no\"' is not of type 'all<int,positive>'";
+        };
+
+        testSafeConstruction = {
+          expr = unsafeBoth.inspect 0;
+          expectedError.type = "ThrownError";
         };
       };
 
