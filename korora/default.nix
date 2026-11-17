@@ -9,6 +9,8 @@
     - Primitive types (`string`, `int`, etc)
     - Polymorphic types (`union`, `attrsOf`, etc)
     - Struct types
+    - Lazy types (`lazyAttrsOf`, etc)
+    - Unsafe types (`either` with lazy types, etc)
 
   # Usage
 
@@ -172,6 +174,7 @@ let
     elem
     elemAt
     filter
+    foldl'
     genList
     head
     isAttrs
@@ -655,8 +658,8 @@ fix (self: {
             have apply semantics. This preserves important properties, like commutativity
             of types.
 
-            If you're sure that this union is safe, define a custom type that
-            applies the first type to pass verification.''
+            If you're sure that this union is safe, use 'types.unsafe.either'
+            with the types in the desired order.''
         else if apply1 == null then
           # To prevent having to use strictVerify to verify types with apply semantics,
           # a subtype with apply semantics must be checked last
@@ -696,8 +699,8 @@ fix (self: {
             type to have apply semantics. This preserves important properties, like commutativity
             of types.
 
-            If you do want multiple application steps to be performed, write a custom type
-            that performs them in the desired order.''
+            If you do want multiple application steps to be performed, use 'types.unsafe.intersection'
+            with the types in the desired order.''
         else
           v: all (verifier: verifier v) (verifiers verifyVariant);
       # TODO: custom explain message - see unsafe variant
@@ -734,8 +737,8 @@ fix (self: {
             have apply semantics. This preserves important properties, like commutativity
             of types.
 
-            If you do want both application steps to be performed, write a custom type
-            that applies one after the other in the desired order.''
+            If you do want both application steps to be performed, use 'types.unsafe.both'
+            with the types in the desired order.''
         else
           v: verify1 verifyVariant v && verify2 verifyVariant v;
       apply =
@@ -1128,4 +1131,187 @@ fix (self: {
           throw "in return type: ${resultType.explain acc}";
     in
     recurse 0;
+
+  # Lazy types
+
+  # Fast `verify` functions the produce false positives and slower `verifyNested` functions that don't.
+  lazy = {
+    attrsOf =
+      t:
+      let
+        name = "lazy.attrsOf<${t.name}>";
+      in
+      self.new {
+        inherit name;
+        verify = isAttrs;
+        verifyNested = verifyVariant: v: isAttrs v && (all t.${verifyVariant} (attrValues v));
+
+        apply =
+          if t.apply == null then
+            mapAttrs (
+              k: v: if t.verify v then v else throw "in type '${name}': in attribute '${k}': ${t.explain v}"
+            )
+          else
+            mapAttrs (
+              k: v:
+              if t.verify v then t.apply v else throw "in type '${name}': in attribute '${k}': ${t.explain v}"
+            );
+      };
+
+    listOf =
+      t:
+      let
+        name = "lazy.listOf<${t.name}>";
+        verifyAll = verifyVariant: all t.${verifyVariant};
+      in
+      self.new {
+        inherit name;
+        verify = isList;
+        verifyNested = verifyVariant: list: isList list && verifyAll verifyVariant list;
+
+        apply =
+          if t.apply == null then
+            map (v: if t.verify v then v else throw "in type '${name}': ${t.explain v}")
+          else
+            map (v: if t.verify v then t.apply v else throw "in type '${name}': ${t.explain v}");
+
+        explain =
+          list:
+          "in type '${name}': "
+          + (
+            if !isList list then
+              notOfType "list" list
+            else
+              "in element: ${explainFirstFailingValue t.strictVerify t.explain list}"
+          );
+      };
+  };
+
+  # Unsafe types
+
+  # Type ordering on creation has an effect on how the type behaves, either in apply-ordering or which apply function is chosen.
+  unsafe = {
+    /*
+      unsafe.both<t1,t2>
+
+      Like 'both', but runs any `apply` functions sequentially, in the order of the types provided.
+    */
+    both =
+      t1: t2:
+      let
+        verify1 = verifyVariant: t1.${verifyVariant};
+        verify2 = verifyVariant: t2.${verifyVariant};
+        apply1 = t1.apply;
+        apply2 = t2.apply;
+        name = "unsafe.all<${t1.name},${t2.name}>";
+      in
+      self.new {
+        inherit name;
+        verifyNested = verifyVariant: v: verify1 verifyVariant v && verify2 verifyVariant v;
+        apply =
+          if apply1 == null then
+            if apply2 == null then null else apply2
+          else if apply2 == null then
+            apply1
+          else
+            v: apply2 (apply1 v);
+      };
+
+    /*
+      unsafe.intersection<types...>
+
+      Like 'intersection', but runs all `apply` functions sequentially, in the order of the types provided.
+    */
+    intersection =
+      types:
+      assert isList types;
+      let
+        verifiers = verifyVariant: map (t: t.${verifyVariant}) types;
+        appliers = filter (t: t.apply != null) types;
+        name = "unsafe.intersection<${joinTypes types}>";
+      in
+      self.new {
+        inherit name;
+        verifyNested = verifyVariant: v: all (verifier: verifier v) (verifiers verifyVariant);
+        # TODO: custom explain message - see safe variant
+        apply = v: foldl' (apply: apply) v appliers;
+      };
+
+    /*
+      unsafe.either<t1,t2>
+
+      Like 'either', but supports multiple types with apply semantics.
+      If a value satisfies multiple types, type provision order takes precedence.
+    */
+    either =
+      t1: t2:
+      let
+        name = "unsafe.either<${t1.name},${t2.name}>";
+        verify1 = verifyVariant: t1.${verifyVariant};
+        verify2 = verifyVariant: t2.${verifyVariant};
+        apply1 = t1.apply;
+        apply2 = t2.apply;
+      in
+      self.new {
+        inherit name;
+        verifyNested = verifyVariant: v: verify1 verifyVariant v || verify2 verifyVariant v;
+        apply =
+          if apply1 == null then
+            if apply2 == null then
+              null
+            else
+              # type2 has apply semantics, type1 does not
+              v: if verify1 "verify" v then v else apply2 v
+          else if apply2 == null then
+            # type1 has apply semantics, type2 does not
+            # verify in order - this is where it differs from types.either.
+            # strictVerify necessary since types with apply semantics may be lazy, and we're making a decision.
+            v: if verify1 "strictVerify" v then apply1 v else v
+          else
+            # Both have apply semantics.
+            # Prefer the first type.
+            v: if verify1 "strictVerify" v then apply1 v else apply2 v;
+      };
+
+    /*
+      unsafe.union<types...>
+
+      Like 'union', but supports multiple types with apply semantics.
+      If a value satisfies multiple types, type provision order takes precedence.
+    */
+    union =
+      types:
+      assert isList types;
+      let
+        name = "unsafe.union<${joinTypes types}>";
+        explain = v: "in type '${name}': '${toPretty v}' is not a member of the union";
+      in
+      self.new {
+        inherit name;
+        verifyNested = verifyVariant: v: any (type: type.${verifyVariant} v) types;
+        inherit explain;
+
+        # nixpkgs' findFirst with substituted values.
+        apply =
+          v:
+          let
+            result = foldl' (
+              accumulator: element:
+              # Verification which decides what type to use must be strict, and must be applied until the type is found.
+              if !accumulator.found && (type: type.strictVerify v) element then
+                {
+                  found = true;
+                  value = element;
+                }
+              else
+                accumulator
+            ) { found = false; } types;
+          in
+          if result.found then
+            # Apply the applier if necessary.
+            (if result.value.apply != null then result.value.apply v else v)
+          else
+            (throw (explain v));
+      };
+  };
 })
