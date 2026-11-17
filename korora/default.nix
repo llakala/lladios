@@ -291,9 +291,7 @@ fix (self: {
 
   # Utility functions
 
-  /*
-    Declare a custom type.
-  */
+  # Declare a custom type.
   new =
     {
       # Name of the type as a string
@@ -381,115 +379,89 @@ fix (self: {
     # value that failed the type check
     v: "value '${toPretty v}' failed the type check";
 
-  /*
-    Used internally, but also useful in documentation generation.
-  */
+  # Used internally, but also useful in documentation generation.
   toPretty = import ./toPretty.nix;
 
   # Primitive types
 
-  /*
-    String
-  */
+  # String
   string = self.new {
     name = "string";
     verify = isString;
     apply = null;
   };
 
-  /*
-    Any
-  */
+  # Any
   any = self.new {
     name = "any";
     verify = _: true;
     apply = null;
   };
 
-  /*
-    Never
-  */
+  # Never
   never = self.new {
     name = "never";
     verify = _: false;
     apply = null;
   };
 
-  /*
-    Int
-  */
+  # Int
   int = self.new {
     name = "int";
     verify = isInt;
     apply = null;
   };
 
-  /*
-    Single precision floating point
-  */
+  # Single precision floating point
   float = self.new {
     name = "float";
     verify = isFloat;
     apply = null;
   };
 
-  /*
-    Either an int or a float
-  */
+  # Either an int or a float
   number = self.new {
     name = "number";
     verify = v: isInt v || isFloat v;
     apply = null;
   };
 
-  /*
-    Bool
-  */
+  # Bool
   bool = self.new {
     name = "bool";
     verify = isBool;
     apply = null;
   };
 
-  /*
-    Null
-  */
+  # Null
   null = self.new {
     name = "null";
     verify = isNull;
     apply = null;
   };
 
-  /*
-    Attribute with undefined attribute types
-  */
+  # Attribute with undefined attribute types
   attrs = self.new {
     name = "attrs";
     verify = isAttrs;
     apply = null;
   };
 
-  /*
-    Attribute with undefined element types
-  */
+  # Attribute with undefined element types
   list = self.new {
     name = "list";
     verify = isList;
     apply = null;
   };
 
-  /*
-    Function
-  */
+  # Function
   function = self.new {
     name = "function";
     verify = isFunction;
     apply = null;
   };
 
-  /*
-    Path
-  */
+  # Path
   path = self.new {
     name = "path";
     verify = isPath;
@@ -506,9 +478,7 @@ fix (self: {
     apply = null;
   };
 
-  /*
-    Derivation
-  */
+  # Derivation
   derivation = self.new {
     name = "derivation";
     verify = v: v.type or null == "derivation";
@@ -517,9 +487,7 @@ fix (self: {
 
   # Polymorphic types
 
-  /*
-    Type
-  */
+  # Type
   type = self.new {
     name = "type";
     verify = v: v ? name && isString v.name && v ? verify && isFunction v.verify;
@@ -528,9 +496,7 @@ fix (self: {
 
   optional = warn "Adios type 'optional<t>' has been renamed to 'nullOr<t>'" self.nullOr;
 
-  /*
-    nullOr<t>
-  */
+  # nullOr<t>
   nullOr =
     # Null or t
     t:
@@ -545,9 +511,7 @@ fix (self: {
       apply = if apply == null then null else v: if verify v then apply v else v;
     };
 
-  /*
-    listOf<t>
-  */
+  # listOf<t>
   listOf =
     # Element type
     t:
@@ -571,9 +535,7 @@ fix (self: {
         );
     };
 
-  /*
-    attrsOf<t>
-  */
+  # attrsOf<t>
   attrsOf =
     # Attribute value type
     t:
@@ -599,9 +561,7 @@ fix (self: {
         );
     };
 
-  /*
-    union<types...>
-  */
+  # union<types...>
   union =
     # Any of <t>
     types:
@@ -1014,9 +974,7 @@ fix (self: {
     in
     mkStruct' { };
 
-  /*
-    optionalAttr<t>
-  */
+  # optionalAttr<t>
   optionalAttr =
     t:
     self.new {
@@ -1029,9 +987,7 @@ fix (self: {
       explain = t.explain;
     };
 
-  /*
-    enum<name, elems...>
-  */
+  # enum<name, elems...>
   enum =
     # Name of enum type as a string
     name:
@@ -1045,9 +1001,7 @@ fix (self: {
       explain = v: "in type '${name}': '${toPretty v}' is not a member of the enum";
     };
 
-  /*
-    tuple<elems...>
-  */
+  # tuple<elems...>
   tuple =
     # List of tuple member types
     types:
@@ -1098,9 +1052,7 @@ fix (self: {
           explainFirstFailingFunction verifiers explainers tuple;
     };
 
-  /*
-    Create a wrapped type checked function.
-  */
+  # Create a wrapped type checked function.
   defun =
     name: paramTypes: resultType:
     let
