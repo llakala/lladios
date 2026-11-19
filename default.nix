@@ -34,6 +34,7 @@ let
     _module = module;
     ${if module.modules != { } then "modules" else null} = mapAttrs (_: canonicalize) module.modules;
     ${if module ? __functor then "__functor" else null} = module.__functor;
+    inherit (module) type;
     inherit (module.args) options inputs results;
     ${if module ? __functor then "result" else null} = module.args.result;
   };

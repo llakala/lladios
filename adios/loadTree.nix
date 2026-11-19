@@ -214,6 +214,7 @@ let
     {
       name,
       option,
+      typecheck,
       self,
       args,
       params,
@@ -224,7 +225,7 @@ let
         if option ? mutatorType then
           seq messages.mutatorTypeWarning option.mutatorType.check
         else
-          option.type.check;
+          typecheck;
     in
     (
       if mutatorInfo ? default then
@@ -306,6 +307,8 @@ let
         name:
         let
           option = options.${name};
+          typecheck =
+            if option.type.__adiosPromise or false then (callPromise option.type).check else option.type.check;
           context = "${errorPrefix} '${self.path}': in option '${name}'";
         in
         # Gross hack - if you want to always go through `merge`,
@@ -315,7 +318,7 @@ let
             {
               inherit name;
               value = addErrorContext context (
-                option.type.check (
+                typecheck (
                   if option ? mergeFunc then
                     throw messages.mergeFuncError
                   else
@@ -324,10 +327,12 @@ let
                         inherit
                           name
                           option
+                          typecheck
                           self
                           args
                           params
                           ;
+
                         # include default as a mutator
                         ${if option ? default || option ? defaultFunc then "default" else null} =
                           if option ? defaultFunc then
@@ -370,7 +375,7 @@ let
           [
             {
               inherit name;
-              value = addErrorContext context (option.type.check params.${name});
+              value = addErrorContext context (typecheck params.${name});
             }
           ]
         else if option ? defaultFunc then
@@ -384,7 +389,7 @@ let
             [
               {
                 inherit name;
-                value = addErrorContext context (option.type.check (callFunctionWith args option.defaultFunc));
+                value = addErrorContext context (typecheck (callFunctionWith args option.defaultFunc));
               }
             ]
         # default value
@@ -393,7 +398,7 @@ let
             {
               inherit name;
               value = addErrorContext context (
-                option.type.check (
+                typecheck (
                   if option.default.__adiosPromise or false then callPromise option.default else option.default
                 )
               );
@@ -461,6 +466,10 @@ let
                 );
             }
         ) inputArgs;
+
+        # HACK: temp for testing other stuff, impl typed inputs instead
+        inherit inputModules;
+
         results = mapAttrs (
           name: args:
           args.result
@@ -485,9 +494,31 @@ let
           # function is cached for all children
           recurse (fetchInput self) (if self.path == "/" then "" else self.path)
         ) (def.modules or { });
+        # Set module options, get module result.
+        type =
+          let
+            name = "module<${self.path}>";
+          in
+          types.new {
+            inherit name;
+            # TODO: non-lazy type version?
+            # TODO: check that attrs match the schema?
+            verify = isAttrs;
+            # FIXME: computeOptions', like recomputeOptions/computeCachedOptions (choose based on whether options supplied)?
+            # should duplicate the relevant logic from apply, that checks whether a set of options matches
+            # otherwise, this type doesn't do correct typechecking unless the module has a result (since only then is self called)
+            verifyNested = verifyVariant: types.modules.option.${verifyVariant};
+
+            # Call self with the given options, if this module has a result.
+            # Otherwise, just return value back, like a normal module (typecheck will handle issues).
+            # The functor will recompute options as necessary.
+            apply = if def ? result then self else null;
+          };
         args =
           if !self ? assertions then args else runAssertionsAndDefine (callFunctionWith args) self args;
 
+        # FIXME: what is this even for? is this just other associated types?
+        # is there any use for this for the module's type, maybe verifyNested? (see other fixme)
         ${if def ? types then "types" else null} = addErrorContext "${errorPrefix}: in attribute 'types'" (
           checkTypedefs def.types
         );
