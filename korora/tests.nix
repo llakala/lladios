@@ -16,7 +16,7 @@ let
     typeError = true;
     toPretty = true;
     optional = true;
-    # FIXME: one of the commits touches this, need to write the tests
+    # FIXME: one of the commits touches this, should write the tests
     typedef = true;
     typedef' = true;
     # TODO: write tests for the pre-apply version of this especially and test parity
@@ -323,6 +323,7 @@ lib.fix (
 
         testSafeConstruction = {
           expr = unsafeTypes.inspect null;
+          # TODO: infix test for specific error
           expectedError.type = "ThrownError";
         };
       };
@@ -355,6 +356,7 @@ lib.fix (
 
         testSafeConstruction = {
           expr = unsafeTypes.inspect null;
+          # TODO: infix test for specific error
           expectedError.type = "ThrownError";
         };
       };
@@ -399,6 +401,7 @@ lib.fix (
 
         testSafeConstruction = {
           expr = unsafeTypes.inspect null;
+          # TODO: infix test for specific error
           expectedError.type = "ThrownError";
         };
       };
@@ -437,6 +440,7 @@ lib.fix (
 
         testSafeConstruction = {
           expr = unsafeTypes.inspect null;
+          # TODO: infix test for specific error
           expectedError.type = "ThrownError";
         };
       };
@@ -713,6 +717,7 @@ lib.fix (
 
         testWrongArg = {
           expr = fn1 1;
+          # TODO: infix test for specific error
           expectedError.type = "ThrownError";
         };
 
@@ -722,6 +727,7 @@ lib.fix (
           in
           {
             expr = fn "foo";
+            # TODO: infix test for specific error
             expectedError.type = "ThrownError";
           };
 
@@ -732,6 +738,7 @@ lib.fix (
 
         testMultipleWrongArg = {
           expr = fn2 "bar" true;
+          # TODO: infix test for specific error
           expectedError.type = "ThrownError";
         };
         testMultipleWrongReturn =
@@ -740,6 +747,7 @@ lib.fix (
           in
           {
             expr = fn "bar" 0;
+            # TODO: infix test for specific error
             expectedError.type = "ThrownError";
           };
       };
@@ -895,6 +903,7 @@ lib.fix (
 
           testSafeInvalid = {
             expr = unsafeType.check 1;
+            # TODO: infix test for specific error
             expectedError.type = "ThrownError";
           };
         };
@@ -1016,6 +1025,7 @@ lib.fix (
                 x = "hello";
               };
             };
+            # TODO: infix test for specific error
             expectedError.type = "ThrownError";
           };
         };
@@ -1058,6 +1068,7 @@ lib.fix (
                 };
               };
             };
+            # TODO: infix test for specific error
             expectedError.type = "ThrownError";
           };
         };
@@ -1136,6 +1147,7 @@ lib.fix (
                   };
                 };
               };
+              # TODO: infix test for specific error
               expectedError.type = "ThrownError";
             };
           };
