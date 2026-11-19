@@ -362,7 +362,19 @@ fix (self: {
       # Prefer simple verify if provided.
       lazyVerify = if !verifyNull then verify else verifyNested "verify";
       # Prefer propagated verify if provided.
-      strictVerify = if !verifyNestedNull then verifyNested "strictVerify" else verify;
+      strictVerify =
+        if
+          # HACK: Making sure everything is set up correctly.
+          # (
+          #   if verifyNestedNull then
+          #     warn "${name} is not a composite type (or does not verify its contained values)" (!verifyNestedNull)
+          #   else
+          (!verifyNestedNull)
+        # )
+        then
+          verifyNested "strictVerify"
+        else
+          verify;
     in
     assert
       !(
