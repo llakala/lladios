@@ -9,6 +9,8 @@
     - Primitive types (`string`, `int`, etc)
     - Polymorphic types (`union`, `attrsOf`, etc)
     - Struct types
+    - Lazy types (`lazyAttrsOf`, etc)
+    - Unsafe types (`either` with lazy types, etc)
 
   # Usage
 
@@ -137,11 +139,11 @@
     let
       name = "singleton<${t.name}>";
       # for performance, only lookup the attributes once
-      inherit (t) verify apply explain;
+      inherit (t) apply explain;
     in
     types.new {
       inherit name;
-      verify = list: isList list && length list == 1 && verify (head list);
+      verifyNested = verifyVariant: list: isList list && length list == 1 && t.${verifyVariant} (head list);
       # call the apply function if it's defined. if not, set `apply = null` to
       # prevent any overhead
       apply = if apply == null then null else v: apply (head v);
@@ -172,6 +174,7 @@ let
     elem
     elemAt
     filter
+    foldl'
     genList
     head
     isAttrs
@@ -216,7 +219,7 @@ let
   # element failed the typecheck
   explainFirstFailingValue =
     # returns true/false depending on whether typecheck passed
-    verify:
+    verifyFunc:
     # generates a custom error message for when the verify function failed
     explain:
     # list where at least one value failed the typecheck
@@ -227,7 +230,7 @@ let
         let
           v = elemAt list i;
         in
-        if verify v then recurse (i + 1) else explain v;
+        if verifyFunc v then recurse (i + 1) else explain v;
     in
     recurse 0;
 
@@ -291,48 +294,64 @@ fix (self: {
 
   # Utility functions
 
-  /*
-    Declare a custom type.
-  */
+  # Declare a custom type.
   new =
     {
       # Name of the type as a string
       name,
       # Verification function.
       # Returns true/false representing a success/failure.
-      verify,
+      verify ? null,
+      # Verification function which propagates lazyness to nested types.
+      # Takes the name of the verification function (useful with the type.${verifyVariant} syntax)
+      # to call on subtypes and returns a `verify` function.
+      verifyNested ? null,
       # Function to "apply" the type when it passes. Only necessary when a type
       # has apply semantics. For basic types, set this to null.
       apply ? seq noApplyWarning (warn "no 'apply' attribute in type '${name}'" null),
       # Function to generate an error message when the verify function fails.
       explain ? notOfType name,
     }:
+    let
+      # TODO: Benchmark having these separate or not - if the same, remove these.
+      # It's probably irrelevant, but I'm curious.
+      verifyNull = verify == null;
+      verifyNestedNull = verifyNested == null;
+
+      # Prefer simple verify if provided.
+      lazyVerify = if !verifyNull then verify else verifyNested "verify";
+    in
+    assert !(verifyNull && verifyNestedNull);
     {
       inherit
         name
-        verify
         explain
         apply
         ;
+
+      verify = lazyVerify;
+      # Prefer propagated verify if provided.
+      strictVerify = if !verifyNestedNull then verifyNested "strictVerify" else verify;
+
       inspect =
         if apply == null then
-          v: if verify v then null else explain v
+          v: if lazyVerify v then null else explain v
         else
-          v: if verify v then seq (apply v) null else explain v;
+          v: if lazyVerify v then seq (apply v) null else explain v;
       check =
         if apply == null then
           v:
-          if verify v == true then
+          if lazyVerify v then
             v
-          else if verify v == null then
+          else if lazyVerify v == null then
             seq nullWarning v
           else
             throw (explain v)
         else
           v:
-          if verify v == true then
+          if lazyVerify v then
             apply v
-          else if verify v == null then
+          else if lazyVerify v == null then
             seq nullWarning v
           else
             throw (explain v);
@@ -361,16 +380,15 @@ fix (self: {
     # Name of the type as a string
     name:
     # Verification function returning null on success & a string with error message on error.
-    verify:
+    explain:
     seq typedefWarning self.new {
-      inherit name;
+      inherit name explain;
       verify =
         v:
         let
-          result = verify v;
+          result = explain v;
         in
-        if result == true then true else false;
-      explain = verify;
+        result;
     };
 
   /*
@@ -381,115 +399,89 @@ fix (self: {
     # value that failed the type check
     v: "value '${toPretty v}' failed the type check";
 
-  /*
-    Used internally, but also useful in documentation generation.
-  */
+  # Used internally, but also useful in documentation generation.
   toPretty = import ./toPretty.nix;
 
   # Primitive types
 
-  /*
-    String
-  */
+  # String
   string = self.new {
     name = "string";
     verify = isString;
     apply = null;
   };
 
-  /*
-    Any
-  */
+  # Any
   any = self.new {
     name = "any";
     verify = _: true;
     apply = null;
   };
 
-  /*
-    Never
-  */
+  # Never
   never = self.new {
     name = "never";
     verify = _: false;
     apply = null;
   };
 
-  /*
-    Int
-  */
+  # Int
   int = self.new {
     name = "int";
     verify = isInt;
     apply = null;
   };
 
-  /*
-    Single precision floating point
-  */
+  # Single precision floating point
   float = self.new {
     name = "float";
     verify = isFloat;
     apply = null;
   };
 
-  /*
-    Either an int or a float
-  */
+  # Either an int or a float
   number = self.new {
     name = "number";
     verify = v: isInt v || isFloat v;
     apply = null;
   };
 
-  /*
-    Bool
-  */
+  # Bool
   bool = self.new {
     name = "bool";
     verify = isBool;
     apply = null;
   };
 
-  /*
-    Null
-  */
+  # Null
   null = self.new {
     name = "null";
     verify = isNull;
     apply = null;
   };
 
-  /*
-    Attribute with undefined attribute types
-  */
+  # Attribute with undefined attribute types
   attrs = self.new {
     name = "attrs";
     verify = isAttrs;
     apply = null;
   };
 
-  /*
-    Attribute with undefined element types
-  */
+  # Attribute with undefined element types
   list = self.new {
     name = "list";
     verify = isList;
     apply = null;
   };
 
-  /*
-    Function
-  */
+  # Function
   function = self.new {
     name = "function";
     verify = isFunction;
     apply = null;
   };
 
-  /*
-    Path
-  */
+  # Path
   path = self.new {
     name = "path";
     verify = isPath;
@@ -506,9 +498,7 @@ fix (self: {
     apply = null;
   };
 
-  /*
-    Derivation
-  */
+  # Derivation
   derivation = self.new {
     name = "derivation";
     verify = v: v.type or null == "derivation";
@@ -517,48 +507,43 @@ fix (self: {
 
   # Polymorphic types
 
-  /*
-    Type
-  */
+  # Type
   type = self.new {
     name = "type";
-    verify = v: v ? name && isString v.name && v ? verify && isFunction v.verify;
+    verifyNested =
+      verifyVariant: v:
+      v ? name && isString v.name && v ? ${verifyVariant} && isFunction v.${verifyVariant};
     apply = null;
   };
 
   optional = warn "Adios type 'optional<t>' has been renamed to 'nullOr<t>'" self.nullOr;
 
-  /*
-    nullOr<t>
-  */
+  # nullOr<t>
   nullOr =
     # Null or t
     t:
     let
-      inherit (t) verify apply;
+      inherit (t) apply;
     in
     self.new {
       name = "nullOr<${t.name}>";
-      verify = v: v == null || verify v;
-      # `t` could accept null values and provide apply semantics - so must
-      # reverify
-      apply = if apply == null then null else v: if verify v then apply v else v;
+      verifyNested = verifyVariant: v: v == null || t.${verifyVariant} v;
+      # `t` could accept null values and provide apply semantics - so must reverify
+      apply = if apply == null then null else v: if t.verify v then apply v else v;
     };
 
-  /*
-    listOf<t>
-  */
+  # listOf<t>
   listOf =
     # Element type
     t:
     let
       name = "listOf<${t.name}>";
-      verifyAll = all t.verify;
-      apply = t.apply;
+      verifyAll = verifyVariant: all t.${verifyVariant};
+      inherit (t) apply;
     in
     self.new {
       inherit name;
-      verify = list: isList list && verifyAll list;
+      verifyNested = verifyVariant: list: isList list && verifyAll verifyVariant list;
       apply = if apply == null then null else map apply;
       explain =
         list:
@@ -567,24 +552,23 @@ fix (self: {
           if !isList list then
             notOfType "list" list
           else
-            "in element: ${explainFirstFailingValue t.verify t.explain list}"
+            # strictVerify is more expensive but strictly more correct, prefer it when performance is not a concern
+            "in element: ${explainFirstFailingValue t.strictVerify t.explain list}"
         );
     };
 
-  /*
-    attrsOf<t>
-  */
+  # attrsOf<t>
   attrsOf =
     # Attribute value type
     t:
     let
       name = "attrsOf<${t.name}>";
-      verifyAll = all t.verify;
-      apply = t.apply;
+      verifyAll = verifyVariant: all t.${verifyVariant};
+      inherit (t) apply;
     in
     self.new {
       inherit name;
-      verify = attrs: isAttrs attrs && verifyAll (attrValues attrs);
+      verifyNested = verifyVariant: attrs: isAttrs attrs && verifyAll verifyVariant (attrValues attrs);
       apply = if apply == null then null else mapAttrs (_: apply);
       explain =
         attrs:
@@ -593,15 +577,13 @@ fix (self: {
           if !isAttrs attrs then
             notOfType "attrs" attrs
           else
-            explainFirstFailingValue (key: t.verify attrs.${key}) (
+            explainFirstFailingValue (key: t.strictVerify attrs.${key}) (
               key: "in attribute '${key}': ${t.explain attrs.${key}}"
             ) (attrNames attrs)
         );
     };
 
-  /*
-    union<types...>
-  */
+  # union<types...>
   union =
     # Any of <t>
     types:
@@ -610,8 +592,8 @@ fix (self: {
       name = "union<${joinTypes types}>";
       partitioned = partition (t: t.apply == null) types;
       verifiers = map (t: t.verify) (
-        # To prevent types with apply semantics from accepting early and
-        # throwing later, a subtype with apply semantics must be checked last
+        # To prevent having to use strictVerify to verify types with apply semantics,
+        # a subtype with apply semantics should be checked last
         if partitioned.wrong == [ ] then types else partitioned.right ++ partitioned.wrong
       );
     in
@@ -626,21 +608,21 @@ fix (self: {
 
             These types were: <${joinTypes partitioned.wrong}>
 
-            'types.either' only allows one type to provide apply semantics. This
+            'types.union' only allows one type to provide apply semantics. This
             prevents an edge case where a type provides a lax verification function,
             and then throws in the apply stage.
 
-            If you're sure that this union is safe, define a custom type that
-            applies the first type to pass verification.''
+            If you're sure that this union is safe, use 'types.unsafe.union'
+            with the types in the desired order.''
         else
           v: any (verifier: verifier v) verifiers;
+      explain = v: "in type '${name}': '${toPretty v}' is not a member of the union";
       # TODO: custom error message
       apply =
         if partitioned.wrong == [ ] then
           null
         else
-          # Apply the applier if necessary. This only re-verifies one type,
-          # rather than all of them.
+          # Apply if necessary. This only re-verifies one type, rather than all of them.
           let
             inherit (head partitioned.wrong) verify apply;
           in
@@ -672,15 +654,15 @@ fix (self: {
           throw ''
             type '${name}' had both types provide apply semantics.
 
-            'types.either' only allows one type to provide apply semantics. This
-            prevents an edge case where a type provides a lax verification function,
-            and then throws in the apply stage.
+            To prevent unintuitive behavior, 'types.either' only allows a single type to
+            have apply semantics. This preserves important properties, like commutativity
+            of types.
 
-            If you're sure that this union is safe, define a custom type that
-            applies the first type to pass verification.''
+            If you're sure that this union is safe, use 'types.unsafe.either'
+            with the types in the desired order.''
         else if apply1 == null then
-          # Verify the type _without_ apply semantics first, to prevent an early
-          # accept that throws later
+          # To prevent having to use strictVerify to verify types with apply semantics,
+          # a subtype with apply semantics must be checked last
           v: verify1 v || verify2 v
         else
           v: verify2 v || verify1 v;
@@ -699,13 +681,14 @@ fix (self: {
     types:
     assert isList types;
     let
-      verifiers = map (t: t.verify) types;
+      verifiers = verifyVariant: map (t: t.${verifyVariant}) types;
       appliers = filter (t: t.apply != null) types;
       name = "intersection<${joinTypes types}>";
     in
     self.new {
       inherit name;
-      verify =
+      verifyNested =
+        verifyVariant:
         if length appliers > 1 then
           throw ''
             type '${name}' tried to intersect multiple types with 'apply' semantics.
@@ -713,14 +696,14 @@ fix (self: {
             These types were: <${joinTypes appliers}>
 
             To prevent unintuitive behavior, 'types.intersection' only allows a single
-            type to have apply semantics. This preserves numerous properties, like order
-            not mattering.
+            type to have apply semantics. This preserves important properties, like commutativity
+            of types.
 
-            If you do want multiple application steps to be performed, write a custom type
-            that performs them in the desired order.''
+            If you do want multiple application steps to be performed, use 'types.unsafe.intersection'
+            with the types in the desired order.''
         else
-          v: all (verifier: verifier v) verifiers;
-      # TODO: custom explain message
+          v: all (verifier: verifier v) (verifiers verifyVariant);
+      # TODO: custom explain message - see unsafe variant
       apply = if appliers == [ ] then null else (head appliers).apply;
     };
 
@@ -736,27 +719,28 @@ fix (self: {
     # And t2
     t2:
     let
-      verify1 = t1.verify;
-      verify2 = t2.verify;
+      verify1 = verifyVariant: t1.${verifyVariant};
+      verify2 = verifyVariant: t2.${verifyVariant};
       apply1 = t1.apply;
       apply2 = t2.apply;
       name = "all<${t1.name},${t2.name}>";
     in
     self.new {
       inherit name;
-      verify =
+      verifyNested =
+        verifyVariant:
         if apply1 != null && apply2 != null then
           throw ''
             type '${name}' had both of its types specify 'apply' semantics.
 
             To prevent unintuitive behavior, 'types.both' only allows a single type to
-            have apply semantics. This preserves numerous properties, like order not
-            mattering.
+            have apply semantics. This preserves important properties, like commutativity
+            of types.
 
-            If you do want both application steps to be performed, write a custom type
-            that applies one after the other in the desired order.''
+            If you do want both application steps to be performed, use 'types.unsafe.both'
+            with the types in the desired order.''
         else
-          v: verify1 v && verify2 v;
+          v: verify1 verifyVariant v && verify2 verifyVariant v;
       apply =
         if apply1 == apply2 then
           null
@@ -773,6 +757,7 @@ fix (self: {
     sub-types we need to erase the name to not cause infinite recursion.
 
     #### Example:
+
     ```nix
     myType = types.attrsOf (
       types.rename "eitherType" (types.union [
@@ -794,7 +779,8 @@ fix (self: {
     # TODO: properly handle optionalAttr
     self.new {
       inherit name;
-      inherit (type) verify explain;
+      inherit (type) explain;
+      verifyNested = verifyVariant: type.${verifyVariant};
       apply = v: if apply == null then v else apply v;
     };
 
@@ -802,6 +788,7 @@ fix (self: {
     struct<name, members...>
 
     #### Example
+
     ```nix
     korora.struct "myStruct" {
       foo = types.string;
@@ -824,6 +811,7 @@ fix (self: {
     ```
 
     This means that a `myStruct` struct can have any of the keys omitted. Thus these are valid:
+
     ```nix
     let
       s1 = { };
@@ -836,6 +824,7 @@ fix (self: {
     By default, unknown attribute names are not allowed.
 
     It is possible to override this by specifying `unknown` on struct creation:
+
     ```nix
     (korora.struct "myStruct" {
       foo = types.string;
@@ -843,12 +832,14 @@ fix (self: {
     ```
 
     This means that
+
     ```nix
     {
       foo = "bar";
       baz = "hello";
     }
     ```
+
     is normally invalid, but works when `unknown` is set to `true`.
 
     Because Nix lacks primitive operations to iterate over attribute sets dynamically without
@@ -857,6 +848,7 @@ fix (self: {
     #### Custom invariants
 
     Custom struct verification functions can be added as such:
+
     ```nix
     (types.struct "testStruct2" {
       x = types.int;
@@ -884,6 +876,7 @@ fix (self: {
     and check for the required elements yourself in a custom `verify` function.
 
     For example:
+
     ```nix
     (types.struct "testStruct3" {
       requiredAttribute = types.int;
@@ -899,7 +892,9 @@ fix (self: {
   struct =
     let
       verifyTotalStruct =
-        types: total: unknown: verify:
+        # TODO: does this need total arg?
+        # TODO: verify arg?
+        verifyVariant: types: _total: unknown: verify:
         let
           names = attrNames types;
           partioned = partition (name: types.${name}.__optional or false) names;
@@ -915,7 +910,7 @@ fix (self: {
             ++ map (
               name:
               let
-                verify = types.${name}.verify;
+                verify = types.${name}.${verifyVariant};
               in
               # optional types don't have to be specified
               v: !v ? ${name} || verify v.${name}
@@ -923,7 +918,7 @@ fix (self: {
             ++ map (
               name:
               let
-                verify = types.${name}.verify;
+                verify = types.${name}.${verifyVariant};
               in
               if unknown then
                 v: v ? ${name} && verify v.${name}
@@ -933,14 +928,17 @@ fix (self: {
                 # again
                 v: verify v.${name}
             ) partioned.wrong
+            # TODO: what is this for?
             ++ (if verify == null then [ ] else [ verify ]);
         in
         v: isAttrs v && all (verifier: verifier v) verifiers;
       verifyNonTotalStruct =
-        types: total: unknown: verify:
+        # TODO: total arg?
+        # TODO: verify arg?
+        verifyVariant: types: _total: unknown: verify:
         let
           noCustomVerify = verify == null;
-          verifiers = mapAttrs (_: type: type.verify) types;
+          verifiers = mapAttrs (_: type: type.${verifyVariant}) types;
         in
         if unknown then
           v:
@@ -971,7 +969,11 @@ fix (self: {
         }:
         self.new {
           name = "struct<${name}>";
-          verify = (if total then verifyTotalStruct else verifyNonTotalStruct) types total unknown verify;
+          verifyNested =
+            verifyVariant:
+            (if total then verifyTotalStruct verifyVariant else verifyNonTotalStruct verifyVariant) types total
+              unknown
+              verify;
           apply =
             if all (t: t.apply == null) (attrValues types) then
               null
@@ -988,7 +990,7 @@ fix (self: {
                 name:
                 if !v ? ${name} then
                   if !total || (types.${name}.__optional or false) then null else "missing member '${name}'"
-                else if !types.${name}.verify v.${name} then
+                else if !types.${name}.strictVerify v.${name} then
                   "in member '${name}': ${types.${name}.explain v.${name}}"
                 else
                   null
@@ -1014,24 +1016,21 @@ fix (self: {
     in
     mkStruct' { };
 
-  /*
-    optionalAttr<t>
-  */
+  # optionalAttr<t>
   optionalAttr =
     t:
     self.new {
       name = "optionalAttr<${t.name}>";
-      inherit (t) verify apply;
+      inherit (t) apply;
+      verifyNested = verifyVariant: t.${verifyVariant};
     }
     // {
       __optional = true;
       # propagate original error, optionalAttr is implementation detail
-      explain = t.explain;
+      inherit (t) explain;
     };
 
-  /*
-    enum<name, elems...>
-  */
+  # enum<name, elems...>
   enum =
     # Name of enum type as a string
     name:
@@ -1045,9 +1044,7 @@ fix (self: {
       explain = v: "in type '${name}': '${toPretty v}' is not a member of the enum";
     };
 
-  /*
-    tuple<elems...>
-  */
+  # tuple<elems...>
   tuple =
     # List of tuple member types
     types:
@@ -1055,17 +1052,21 @@ fix (self: {
     let
       name = "tuple<${joinTypes types}>";
       len = length types;
-      verifiers = genList (
-        i:
-        let
-          verify = (elemAt types i).verify;
-        in
-        v: verify (elemAt v i)
-      ) len;
+      verifiers =
+        verifyVariant:
+        genList (
+          i:
+          let
+            verify = (elemAt types i).${verifyVariant};
+          in
+          v: verify (elemAt v i)
+        ) len;
     in
     self.new {
       inherit name;
-      verify = v: isList v && length v == len && all (verifier: verifier v) verifiers;
+      verifyNested =
+        verifyVariant: v:
+        isList v && length v == len && all (verifier: verifier v) (verifiers verifyVariant);
       apply =
         if all (t: t.apply == null) types then
           null
@@ -1074,7 +1075,7 @@ fix (self: {
           genList (
             i:
             let
-              apply = (elemAt types i).apply;
+              inherit (elemAt types i) apply;
             in
             if apply == null then elemAt v i else apply (elemAt v i)
           ) len;
@@ -1095,14 +1096,12 @@ fix (self: {
               "in element ${toString i} of type '${name}': ${type.explain tupleElem}"
             ) len;
           in
-          explainFirstFailingFunction verifiers explainers tuple;
+          explainFirstFailingFunction (verifiers "strictVerify") explainers tuple;
     };
 
-  /*
-    Create a wrapped type checked function.
-  */
+  # Create a wrapped type checked function.
   defun =
-    name: paramTypes: resultType:
+    _name: paramTypes: resultType:
     let
       len = length paramTypes;
       recurse =
@@ -1113,7 +1112,9 @@ fix (self: {
             type = elemAt paramTypes i;
           in
           if type.apply != null then
-            throw "types.defun doesn't support apply semantics yet, but they were used in param type '${type.name}"
+            # TODO: can these be implemented?
+            throw
+              "types.defun doesn't support apply semantics yet, but they were used in param type '${type.name}"
           else
             value:
             if type.verify value then
@@ -1130,4 +1131,187 @@ fix (self: {
           throw "in return type: ${resultType.explain acc}";
     in
     recurse 0;
+
+  # Lazy types
+
+  # Fast `verify` functions the produce false positives and slower `verifyNested` functions that don't.
+  lazy = {
+    attrsOf =
+      t:
+      let
+        name = "lazy.attrsOf<${t.name}>";
+      in
+      self.new {
+        inherit name;
+        verify = isAttrs;
+        verifyNested = verifyVariant: v: isAttrs v && (all t.${verifyVariant} (attrValues v));
+
+        apply =
+          if t.apply == null then
+            mapAttrs (
+              k: v: if t.verify v then v else throw "in type '${name}': in attribute '${k}': ${t.explain v}"
+            )
+          else
+            mapAttrs (
+              k: v:
+              if t.verify v then t.apply v else throw "in type '${name}': in attribute '${k}': ${t.explain v}"
+            );
+      };
+
+    listOf =
+      t:
+      let
+        name = "lazy.listOf<${t.name}>";
+        verifyAll = verifyVariant: all t.${verifyVariant};
+      in
+      self.new {
+        inherit name;
+        verify = isList;
+        verifyNested = verifyVariant: list: isList list && verifyAll verifyVariant list;
+
+        apply =
+          if t.apply == null then
+            map (v: if t.verify v then v else throw "in type '${name}': ${t.explain v}")
+          else
+            map (v: if t.verify v then t.apply v else throw "in type '${name}': ${t.explain v}");
+
+        explain =
+          list:
+          "in type '${name}': "
+          + (
+            if !isList list then
+              notOfType "list" list
+            else
+              "in element: ${explainFirstFailingValue t.strictVerify t.explain list}"
+          );
+      };
+  };
+
+  # Unsafe types
+
+  # Type ordering on creation has an effect on how the type behaves, either in apply-ordering or which apply function is chosen.
+  unsafe = {
+    /*
+      unsafe.both<t1,t2>
+
+      Like 'both', but runs any `apply` functions sequentially, in the order of the types provided.
+    */
+    both =
+      t1: t2:
+      let
+        verify1 = verifyVariant: t1.${verifyVariant};
+        verify2 = verifyVariant: t2.${verifyVariant};
+        apply1 = t1.apply;
+        apply2 = t2.apply;
+        name = "unsafe.all<${t1.name},${t2.name}>";
+      in
+      self.new {
+        inherit name;
+        verifyNested = verifyVariant: v: verify1 verifyVariant v && verify2 verifyVariant v;
+        apply =
+          if apply1 == null then
+            if apply2 == null then null else apply2
+          else if apply2 == null then
+            apply1
+          else
+            v: apply2 (apply1 v);
+      };
+
+    /*
+      unsafe.intersection<types...>
+
+      Like 'intersection', but runs all `apply` functions sequentially, in the order of the types provided.
+    */
+    intersection =
+      types:
+      assert isList types;
+      let
+        verifiers = verifyVariant: map (t: t.${verifyVariant}) types;
+        appliers = filter (t: t.apply != null) types;
+        name = "unsafe.intersection<${joinTypes types}>";
+      in
+      self.new {
+        inherit name;
+        verifyNested = verifyVariant: v: all (verifier: verifier v) (verifiers verifyVariant);
+        # TODO: custom explain message - see safe variant
+        apply = v: foldl' (apply: apply) v appliers;
+      };
+
+    /*
+      unsafe.either<t1,t2>
+
+      Like 'either', but supports multiple types with apply semantics.
+      If a value satisfies multiple types, type provision order takes precedence.
+    */
+    either =
+      t1: t2:
+      let
+        name = "unsafe.either<${t1.name},${t2.name}>";
+        verify1 = verifyVariant: t1.${verifyVariant};
+        verify2 = verifyVariant: t2.${verifyVariant};
+        apply1 = t1.apply;
+        apply2 = t2.apply;
+      in
+      self.new {
+        inherit name;
+        verifyNested = verifyVariant: v: verify1 verifyVariant v || verify2 verifyVariant v;
+        apply =
+          if apply1 == null then
+            if apply2 == null then
+              null
+            else
+              # type2 has apply semantics, type1 does not
+              v: if verify1 "verify" v then v else apply2 v
+          else if apply2 == null then
+            # type1 has apply semantics, type2 does not
+            # verify in order - this is where it differs from types.either.
+            # strictVerify necessary since types with apply semantics may be lazy, and we're making a decision.
+            v: if verify1 "strictVerify" v then apply1 v else v
+          else
+            # Both have apply semantics.
+            # Prefer the first type.
+            v: if verify1 "strictVerify" v then apply1 v else apply2 v;
+      };
+
+    /*
+      unsafe.union<types...>
+
+      Like 'union', but supports multiple types with apply semantics.
+      If a value satisfies multiple types, type provision order takes precedence.
+    */
+    union =
+      types:
+      assert isList types;
+      let
+        name = "unsafe.union<${joinTypes types}>";
+        explain = v: "in type '${name}': '${toPretty v}' is not a member of the union";
+      in
+      self.new {
+        inherit name;
+        verifyNested = verifyVariant: v: any (type: type.${verifyVariant} v) types;
+        inherit explain;
+
+        # nixpkgs' findFirst with substituted values.
+        apply =
+          v:
+          let
+            result = foldl' (
+              accumulator: element:
+              # Verification which decides what type to use must be strict, and must be applied until the type is found.
+              if !accumulator.found && (type: type.strictVerify v) element then
+                {
+                  found = true;
+                  value = element;
+                }
+              else
+                accumulator
+            ) { found = false; } types;
+          in
+          if result.found then
+            # Apply the applier if necessary.
+            (if result.value.apply != null then result.value.apply v else v)
+          else
+            (throw (explain v));
+      };
+  };
 })
