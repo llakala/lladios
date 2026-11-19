@@ -6,6 +6,7 @@ let
     any
     attrs
     attrsOf
+    bool
     either
     function
     listOf
@@ -16,6 +17,9 @@ let
     type
     ;
 
+  # TODO: do any of these actually need the verifyNested treatment?
+  # Do they take in user-supplied types?
+  # If not, note down why they aren't getting it.
   modules = {
     types = attrsOf (
       either type (
@@ -26,9 +30,18 @@ let
       )
     );
 
+    # TODO: is specifying resolve here faster than only checking for the promise attribute?
+    # TODO: should this go elsewhere?
+    # TODO: any more-efficient struct overrides?
+    promise = struct "promise" {
+      __adiosPromise = bool;
+      resolve = function;
+    };
+
     normalOption =
       (struct "option" {
-        inherit type;
+        # TODO: benchmark new type against pre-promise types, optimise
+        type = either type modules.promise;
         description = string;
         default = any;
         defaultFunc = function; # deprecated
@@ -83,7 +96,8 @@ let
     input =
       (struct "input" {
         # Note: The lack of a type for an input means no type checking done.
-        type = type;
+        # TODO: should inputs use their module's type by default?
+        inherit type;
         path = korora.new {
           name = "pathstring";
           verify = isString;
