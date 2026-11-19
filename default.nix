@@ -53,6 +53,7 @@ let
     module: {
       _module = module;
       ${if module.modules != { } then "modules" else null} = recurse module.modules;
+      inherit (module) type;
       inherit (module.args) options inputs results;
       ${if module ? __functor then "__functor" else null} = module.__functor;
       ${if module ? __functor then "result" else null} = module.args.result;
