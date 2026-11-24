@@ -1,5 +1,25 @@
 Any new features or breaking changes will be listed here.
 
+# Minimum support bump in 2027
+
+Adios has accumulated many warnings over the last few months of active development. This has left the codebase full of
+redundant logic for giving friendly error messages. This is bad for performance, has created some footguns, and makes
+some future changes impossible. In early 2027, these warnings will be dropped, and existing deprecations will now error.
+
+Warnings/errors that will be dropped include:
+- `defaultFunc` usage
+- `impl` usage
+- Setting `mutations.<module-name>.<option-name>` to a function to "imply" a promise
+- Calling modules directly in-tree
+- Setting `mutatorType`
+- Setting `mergeFunc` instead of `merge`
+- Using old functions for creating custom types (ex. `types.typedef'`)
+- Accessing attributes that have been moved to new locations
+
+This means that Adios will lose its support policy of properly evaluating modules written for adisbladis/adios. This was
+an important goal early on, but I'm lucky enough that most Adios users have swapped to my fork (except for a specific
+sect of `adios-flake` users). This is simply a bump of our minimum supported version to what Adios currently evaluates.
+
 # `mergeFunc` deprecated
 
 The `mergeFunc` attribute is deprecated in favor of the new `merge` attribute. This attribute comes with a few behavior
