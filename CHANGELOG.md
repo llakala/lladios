@@ -1,5 +1,83 @@
 Any new features or breaking changes will be listed here.
 
+# Apply semantics
+
+Adios's type system ("Korora") now allows types to return a new value upon passing. This is referred to as "apply
+semantics".
+
+For example:
+
+```nix
+types.new {
+  name = "signer"; # "signs" attrsets after passing
+  verify = builtins.isAttrs;
+  apply = v: v // { checked = true };
+}
+```
+
+This will allow the creation of more powerful types in the future. Apply semantics are designed to be zero-cost if you
+don't use them (where "zero-cost" means that any cost is only paid on type construction).
+
+Apply semantics come with a few small changes to existing types.
+
+First, when calling `types.new`, the `apply` attribute is now required, and leaving it unset will trigger a warning.
+This is to prevent bugs - a polymorphic type that _doesn't_ propagate the `apply` function of its subtypes will have
+broken behavior. If your custom type is non-polymorphic, simply set `apply = null`. See the [Korora
+documentation](./korora/README.md) for more info.
+
+Second, whereas `types.rename` was previously used to prevent infinite recursion in a recursive type:
+
+```nix
+  recursiveType = types.attrsOf (
+    types.union [
+      types.string
+      (types.rename "self" recursiveType)
+    ]
+  );
+```
+
+`<type>.override` should now be used instead.
+
+```nix
+  recursiveType = types.attrsOf (
+    types.union [
+      types.string
+      (recursiveType.override {
+        name = "self";
+        apply = null;
+      })
+    ]
+  );
+```
+
+This supports overriding _any_ of the attributes passed into `types.new`. Overriding `apply = null` is necessary here,
+as polymorphic types check all subtypes for apply semantics to preserve zero-cost behavior. If not interrupted, this
+will cause a cycle.
+
+Finally, some recursive types will now infinitely recurse when they didn't before. For example:
+
+```nix
+  recursiveType = types.struct "recursive" {
+    children = types.optionalAttr (types.attrsOf recursiveType);
+  };
+```
+
+To fix this, `<type>.override` must be used.
+
+```nix
+  recursiveType = types.struct "recursive" {
+    children = types.optionalAttr (
+      types.attrsOf (
+        recursiveType.override {
+          apply = null;
+        }
+      )
+    );
+  };
+```
+
+See the documentation of `types.new` in the Korora docs for more info.
+
 # `promise.map` moved
 
 The `promise.map` function has been moved to `await`.

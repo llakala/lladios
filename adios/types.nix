@@ -11,14 +11,20 @@ let
     listOf
     new
     optionalAttr
-    rename
     string
     struct
     type
     ;
 
   modules = {
-    types = attrsOf (either type (rename "subtypedef" modules.types));
+    types = attrsOf (
+      either type (
+        modules.types.override {
+          name = "subtypedef";
+          apply = null;
+        }
+      )
+    );
 
     normalOption =
       (struct "option" {
@@ -70,6 +76,7 @@ let
       new {
         name = "option";
         verify = v: if v ? options then verifySubOptions v else verifyNormalOption v;
+        apply = null;
         explain = v: if v ? options then explainSubOptions v else explainNormalOption v;
       };
 
@@ -80,11 +87,13 @@ let
         path = korora.new {
           name = "pathstring";
           verify = isString;
+          apply = null;
         };
         options = attrs;
         from = korora.new {
           name = "from";
           verify = isFunction;
+          apply = null;
         };
       }).override
         {
@@ -100,7 +109,14 @@ let
 
     mutation = attrs;
 
-    lib = attrsOf (either function (rename "sublib" modules.lib));
+    lib = attrsOf (
+      either function (
+        modules.lib.override {
+          name = "sublib";
+          apply = null;
+        }
+      )
+    );
 
     assertions = listOf (
       struct "assertion" {
