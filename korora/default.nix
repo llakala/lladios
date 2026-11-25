@@ -350,7 +350,7 @@ fix (self: {
       apply ? seq noApplyMessage (warn "no 'apply' attribute in type '${name}'" null),
       # Function to generate an error message when the verify function fails.
       explain ? notOfType name,
-    } @ params:
+    }@params:
     {
       inherit
         name
@@ -565,7 +565,7 @@ fix (self: {
     let
       name = "listOf<${t.name}>";
       verifyAll = all t.verify;
-      apply = t.apply;
+      inherit (t) apply;
     in
     self.new {
       inherit name;
@@ -589,7 +589,7 @@ fix (self: {
     let
       name = "attrsOf<${t.name}>";
       verifyAll = all t.verify;
-      apply = t.apply;
+      inherit (t) apply;
     in
     self.new {
       inherit name;
@@ -700,9 +700,7 @@ fix (self: {
           v: if verify2 v then v else apply1 v;
     };
 
-  /*
-    intersection<types...>
-  */
+  # intersection<types...>
   intersection =
     # All of <t>
     types:
@@ -789,6 +787,7 @@ fix (self: {
     struct<name, members...>
 
     #### Example
+
     ```nix
     korora.struct "myStruct" {
       foo = types.string;
@@ -811,6 +810,7 @@ fix (self: {
     ```
 
     This means that a `myStruct` struct can have any of the keys omitted. Thus these are valid:
+
     ```nix
     let
       s1 = { };
@@ -823,6 +823,7 @@ fix (self: {
     By default, unknown attribute names are not allowed.
 
     It is possible to override this by specifying `unknown` on struct creation:
+
     ```nix
     (korora.struct "myStruct" {
       foo = types.string;
@@ -830,12 +831,14 @@ fix (self: {
     ```
 
     This means that
+
     ```nix
     {
       foo = "bar";
       baz = "hello";
     }
     ```
+
     is normally invalid, but works when `unknown` is set to `true`.
 
     Because Nix lacks primitive operations to iterate over attribute sets dynamically without
@@ -844,6 +847,7 @@ fix (self: {
     #### Custom invariants
 
     Custom struct verification functions can be added as such:
+
     ```nix
     (types.struct "testStruct2" {
       x = types.int;
@@ -871,6 +875,7 @@ fix (self: {
     and check for the required elements yourself in a custom `verify` function.
 
     For example:
+
     ```nix
     (types.struct "testStruct3" {
       requiredAttribute = types.int;
@@ -886,7 +891,7 @@ fix (self: {
   struct =
     let
       verifyTotalStruct =
-        types: total: unknown: verify:
+        types: _total: unknown: verify:
         let
           names = attrNames types;
           partioned = partition (name: types.${name}.__optional or false) names;
@@ -924,7 +929,7 @@ fix (self: {
         in
         v: isAttrs v && all (verifier: verifier v) verifiers;
       verifyNonTotalStruct =
-        types: total: unknown: verify:
+        types: _total: unknown: verify:
         let
           noCustomVerify = verify == null;
           verifiers = mapAttrs (_: type: type.verify) types;
@@ -1019,7 +1024,7 @@ fix (self: {
           # propagate original error, optionalAttr is implementation detail
           # note: this makes .override ignore explain, but overriding explain is
           # silly
-          explain = t.explain;
+          inherit (t) explain;
         };
     in
     create {
@@ -1052,7 +1057,7 @@ fix (self: {
       verifiers = genList (
         i:
         let
-          verify = (elemAt types i).verify;
+          inherit (elemAt types i) verify;
         in
         v: verify (elemAt v i)
       ) len;
@@ -1068,7 +1073,7 @@ fix (self: {
           genList (
             i:
             let
-              apply = (elemAt types i).apply;
+              inherit (elemAt types i) apply;
             in
             if apply == null then elemAt v i else apply (elemAt v i)
           ) len;
@@ -1094,7 +1099,7 @@ fix (self: {
 
   # Create a wrapped type checked function.
   defun =
-    name: paramTypes: resultType:
+    _name: paramTypes: resultType:
     let
       len = length paramTypes;
       recurse =

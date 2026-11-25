@@ -47,7 +47,7 @@ let
 
 in
 lib.fix (
-  self:
+  _self:
   addCoverage types {
     string = {
       testInvalid = {
@@ -267,7 +267,7 @@ lib.fix (
         testApply = types.attrsOf (
           types.new {
             name = "list-doubler";
-            verify = (types.listOf types.int).verify;
+            inherit (types.listOf types.int) verify;
             apply = map (v: v * 2);
           }
         );
@@ -337,7 +337,7 @@ lib.fix (
         ];
         thrower = types.new {
           name = "thrower";
-          verify = v: throw "no";
+          verify = _v: throw "no";
           apply = v: v * 2; # has apply semantics
         };
         testApply3 = types.union [
@@ -391,7 +391,7 @@ lib.fix (
         testApply1 = types.either types.bool worldAppender;
         thrower = types.new {
           name = "thrower";
-          verify = v: throw "no";
+          verify = _v: throw "no";
           apply = v: v * 2; # has apply semantics
         };
         testApply2 = types.either thrower types.bool;
@@ -493,7 +493,7 @@ lib.fix (
         };
         negater = types.new {
           name = "negater";
-          verify = v: true;
+          verify = _v: true;
           apply = v: v * -1;
         };
         testBoth = types.both types.int positive;
@@ -589,7 +589,7 @@ lib.fix (
           }).override
             {
               verify = v: v.x + v.y != 2;
-              explain = v: "VERBOTEN";
+              explain = _v: "VERBOTEN";
             };
 
         testStructCustomVerifyNoExplain = testStructCustomVerify.override {

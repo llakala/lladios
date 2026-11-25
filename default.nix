@@ -59,7 +59,13 @@ let
     };
 
   adios = {
-    inherit types lib merge promise await;
+    inherit
+      types
+      lib
+      merge
+      promise
+      await
+      ;
     eval =
       root:
       let
