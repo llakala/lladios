@@ -1,4 +1,4 @@
-{ types, promise, ... }@adios:
+{ types, promise, await, ... }@adios:
 {
   testBasicDefaultSetting = {
     module = adios.lib.inject [
@@ -23,7 +23,7 @@
         result = promise ({ options }: options.test);
       }
       {
-        options.test.default = promise.map (prev: prev + 1);
+        options.test.default = await (prev: prev + 1);
       }
     ];
     expected = 11;
@@ -39,7 +39,7 @@
         result = promise ({ options }: options.hello);
       }
       {
-        result = promise.map (prev: prev + " world");
+        result = await (prev: prev + " world");
       }
     ];
     expected = "hello world";
@@ -55,14 +55,14 @@
           type = types.int;
           default = 5;
         };
-        result = promise.map (
+        result = await (
           prev:
           # return a new promise
           promise ({ options }: prev + options.foo)
         );
       }
       {
-        result = promise.map (prev: prev - 7);
+        result = await (prev: prev - 7);
       }
     ];
     expected = 0;

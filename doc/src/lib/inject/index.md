@@ -22,7 +22,7 @@ let
 
   tree = adios root {};
 in
-  tree.modules
+tree.modules
 ```
 
 Note that `inject` takes a list for a reason - injections can be performed multiple times. This works as you may expect,
@@ -72,6 +72,7 @@ adios.lib.inject [
 Here's an example of injecting into a basic Adios module:
 
 ```nix
+{ types, promise, ... } @ adios:
 let
   base = {
     options = {
@@ -111,15 +112,18 @@ tree {} == ''
 
 ## Using promises
 
-`promise.map` can be used inside injections to "await" the old version of an attribute. Here's an alternative injection
-for the above module that makes use of it:
+`await` can be used inside injections to read from the old value of an attribute. Here's an alternative injection for
+the above module that makes use of it:
 
 ```nix
+{ types, promise, await, ... } @ adios:
 let
+  base = null; # snip
+
   injection = {
-    options.age.default = promise.map (prev: prev * 2);
+    options.age.default = await (prev: prev * 2);
     options.age-someday.type = types.string;
-    options.age-someday.default = promise.map (prev: "ABOUT " + toString prev);
+    options.age-someday.default = await (prev: "ABOUT " + toString prev);
   };
 
   module = adios.lib.inject [ base injection ];
@@ -133,6 +137,6 @@ tree {} == ''
 
 Let's take a look at how this works. When `adios.lib.inject` is called, `options.age.default` was _not_ a promise -- so
 the `prev:` function can be resolved immediately, and `20` is returned. But `age-someday` is more interesting. Since the
-original value was a promise, we don't know what `prev` is until the original promise is resolved. So `promise.map`
-instead returns a _new_ promise that wraps the original promise. Upon evaluating the injected module with Adios, the
-promises will be resolved recursively.
+original value was a promise, we don't know what `prev` is until the original promise is resolved. So `await` instead
+returns a _new_ promise that wraps the original promise. Upon evaluating the injected module with Adios, the promises
+will be resolved recursively.

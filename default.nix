@@ -4,7 +4,9 @@ let
   types = import ./adios/types.nix {
     korora = import ./korora;
   };
+
   messages = import ./adios/messages.nix;
+
   merge = {
     lists.concat = concatLists;
     strings.concatLines = concatStringsSep "\n";
@@ -17,17 +19,30 @@ let
     general.withPrio = messages.withPrioError;
     general.withOrder = import ./adios/merge/with-order.nix;
   };
+
   lib = {
     importModules = import ./adios/lib/importModules.nix { inherit adios; };
     inject = import ./adios/lib/inject.nix;
     merge = seq messages.mergeMovedWarning merge;
   };
 
+  promise = {
+    __functor = _: resolve: {
+      __adiosPromise = true;
+      inherit resolve;
+    };
+    map = seq messages.awaitWarning await;
+  };
+
+  await = await: {
+    __adiosAwaiting = true;
+    inherit await;
+  };
+
   loadTree = import ./adios/loadTree.nix types messages;
 
   adios = {
-    inherit types lib merge;
-    promise = import ./adios/promise.nix;
+    inherit types lib merge promise await;
     __functor =
       _: rootDef:
       {

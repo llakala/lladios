@@ -1,5 +1,42 @@
 Any new features or breaking changes will be listed here.
 
+# `promise.map` moved
+
+The `promise.map` function has been moved to `await`.
+
+```nix
+# before
+{ promise, ... }:
+{
+  options.foo.default = promise.map (prev: prev + 1);
+}
+# after
+{ await, ... }:
+{
+  options.foo.default = await (prev: prev + 1);
+}
+```
+
+This function allows reading the current value of an attribute within an injection, and returning a new value. It was
+added as part of the promises update, since it handles promises by deferring evaluation until Adios evaluates the
+module. However, it works with any attribute.
+
+```nix
+{ await, ... }:
+{
+  # all of these work!
+  options.foo.default = await (prev: prev + 1);
+  options.foo.mutators = await (prev: prev ++ [ "/foo" "/bar" ]);
+  options = await (
+    prev:
+    removeAttrs prev [ "bar" ]
+  );
+}
+```
+
+This made the old location confusing, since it implied that the function was _only_ for mapping promises. The new name
+isn't perfect, but it clarifies the general usecase better.
+
 # Minimum support bump in 2027
 
 Adios has accumulated many warnings over the last few months of active development. This has left the codebase full of

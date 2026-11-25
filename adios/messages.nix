@@ -87,6 +87,12 @@ in
     See the lladios changelog for rationale and a migration guide:
     https://github.com/llakala/lladios/blob/main/CHANGELOG.md#new-format-for-calling-options'';
 
+  awaitWarning = traceMessage ''
+    At least one of your Adios modules used 'promise.map', which has been renamed to 'await'.
+
+    See the lladios changelog for rationale and a migration guide:
+    https://github.com/llakala/lladios/blob/main/CHANGELOG.md#promise-map-moved'';
+
   mergeMovedWarning = traceMessage ''
     'adios.lib.merge' has been moved to 'adios.merge'.
     The new location allows `merge` to be conveniently destructured in a file's toplevel parameters.
