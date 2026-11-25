@@ -8,20 +8,19 @@ let
     {
       module ? null,
       modules ? null,
-      evalParams ? { },
       apply ? null,
       expected ? null,
       expectedError ? null,
     }:
     let
-      tree = adios (
+      tree = adios.eval (
         if modules != null then
           { inherit modules; }
         else if module != null then
           module
         else
           throw "test '${testName}' didn't provide a 'modules' or 'module' argument!"
-      ) evalParams;
+      );
     in
     assert (module == null) != (modules == null);
     assert (expected == null) != (expectedError == null);
@@ -37,6 +36,5 @@ let
 
 in
 mapAttrs (
-  fileName:
-  mapAttrs (name: test: if test ? expr then test else mkTest "${fileName}/${name}" test)
+  fileName: mapAttrs (name: test: if test ? expr then test else mkTest "${fileName}/${name}" test)
 ) testFiles
