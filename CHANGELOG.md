@@ -1,5 +1,90 @@
 Any new features or breaking changes will be listed here.
 
+# New module structure
+
+Previously, evaluating a module returned a structure that looked like a superset of the original module definition. This
+was based on an old design goal where an entire tree could be evaluated and then fed _back_ into Adios. However, this
+goal hasn't been pursued in months, and the "superset" behavior is more confusing than it is helpful.
+
+With this in mind, modules now use a new schema:
+
+```nix
+{
+  __functor = ...; # call the module with new params
+  modules = ...; # the module's children
+
+  options = ...; # # each option's evaluated value
+  result = ...; # the result of calling the module with empty params
+  inputs = ...; # the values of each input's options
+  results = ...; # the result of calling each input
+
+  _module = ...; # attributes used in evaluation (intended for internal use, may change without warning)
+}
+```
+
+To allow clean migrations to the new schema, a new function is used to evaluate Adios modules.
+
+```nix
+let
+  # before
+  root = ...;
+  tree = adios root {};
+
+  # after
+  root = ...;
+  tree = adios.eval (
+    adios.lib.importModules { directory = ./modules; }
+  );
+```
+
+If you previously used the `options` field when calling Adios, you should swap to an inline injection.
+
+```nix
+let
+  # before
+  root = ...;
+  tree = adios root {
+    options."/some-module".some-option = 5;
+  };
+
+  # after
+  root = adios.lib.inject [
+    ...
+    {
+      some-module = {
+        options.some-option.default = 5;
+      };
+    }
+  ];
+  tree = adios.eval root;
+```
+
+Removing this API means we no longer have to check `evalParams` on module evaluation, which improves performance. While
+injections are slightly more verbose, they preserve our desired layering rules, and are much more powerful. I recognize
+the demand for an Adios "frontend" to avoid the need to write `.default` - but I think this API is the wrong way to do
+it. If a frontend were to be added in the future, it would likely be in the form of an `adios.lib` function that
+returned a module set.
+
+Only `adios.eval` will return the new schema, and calling `adios` will warn. In early 2027, the old API will be removed
+with the bump to our minimum support version (see [this changelog entry](#minimum-support-bump-in-2027)). This is a
+shorter warning period than I'd typically provide, but doing it now will allow for several improvements to our internal
+structure.
+
+Design decisions of the new schema include:
+
+1. Evaluation artifacts of the module are moved from underneath `args` to toplevel. This is useful for
+   injection-centered workflows, since if you don't need custom params, accessing the computed `options` or `result` is
+   trivial. Care is taken to only compute these attributes on access, so calling the module won't also evaluate them.
+
+2. Module attributes like `options`, `mutations`, `inputs`, `assertions`, etc are _not_ accessible at toplevel. Storing
+   and typechecking these attributes improves error messages, but accessing them _through_ the evaluated tree is not an
+   intended usecase. If you need access to these attributes, the non-evaluated root can be used.
+
+3. Other attributes are hidden under `_module`. Currently, this is just the "old" schema that's still used internally,
+   but it's expected to change in the future, and no stability guarantees are given. I trust users to think of usecases
+   I haven't, which is why I'm still exposing this information -- but if something under `_module` is key to your
+   workflow, it may be a sign that Adios should accommodate your usecase better. Issues are welcome :)
+
 # Apply semantics
 
 Adios's type system ("Korora") now allows types to return a new value upon passing. This is referred to as "apply

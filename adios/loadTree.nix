@@ -5,6 +5,7 @@ let
     addErrorContext
     all
     attrNames
+    attrValues
     concatMap
     concatStringsSep
     filter
@@ -214,6 +215,7 @@ let
     {
       name,
       option,
+      typecheck,
       self,
       args,
       params,
@@ -224,7 +226,7 @@ let
         if option ? mutatorType then
           seq messages.mutatorTypeWarning option.mutatorType.check
         else
-          option.type.check;
+          typecheck;
     in
     (
       if mutatorInfo ? default then
@@ -306,6 +308,8 @@ let
         name:
         let
           option = options.${name};
+          typecheck =
+            if option.type.__adiosPromise or false then (callPromise option.type).check else option.type.check;
           context = "${errorPrefix} '${self.path}': in option '${name}'";
         in
         # Gross hack - if you want to always go through `merge`,
@@ -315,7 +319,7 @@ let
             {
               inherit name;
               value = addErrorContext context (
-                option.type.check (
+                typecheck (
                   if option ? mergeFunc then
                     throw messages.mergeFuncError
                   else
@@ -324,10 +328,12 @@ let
                         inherit
                           name
                           option
+                          typecheck
                           self
                           args
                           params
                           ;
+
                         # include default as a mutator
                         ${if option ? default || option ? defaultFunc then "default" else null} =
                           if option ? defaultFunc then
@@ -370,7 +376,7 @@ let
           [
             {
               inherit name;
-              value = addErrorContext context (option.type.check params.${name});
+              value = addErrorContext context (typecheck params.${name});
             }
           ]
         else if option ? defaultFunc then
@@ -384,7 +390,7 @@ let
             [
               {
                 inherit name;
-                value = addErrorContext context (option.type.check (callFunctionWith args option.defaultFunc));
+                value = addErrorContext context (typecheck (callFunctionWith args option.defaultFunc));
               }
             ]
         # default value
@@ -393,7 +399,7 @@ let
             {
               inherit name;
               value = addErrorContext context (
-                option.type.check (
+                typecheck (
                   if option.default.__adiosPromise or false then callPromise option.default else option.default
                 )
               );
@@ -407,6 +413,7 @@ let
   recomputeOptions = computeOptions' "while calling";
 in
 # Directly passed values for options in the eval stage
+# TODO: try implementing a world where this didn't exist
 evalParams:
 let
   recurse =
@@ -461,6 +468,10 @@ let
                 );
             }
         ) inputArgs;
+
+        # HACK: temp for testing other stuff, impl typed inputs instead
+        inherit inputModules;
+
         results = mapAttrs (
           name: args:
           args.result
@@ -485,14 +496,67 @@ let
           # function is cached for all children
           recurse (fetchInput self) (if self.path == "/" then "" else self.path)
         ) (def.modules or { });
+        # Set module options, get module result.
+        type =
+          let
+            name = "module<${self.path}>";
+          in
+          types.new {
+            inherit name;
+            # This type is fundamentally lazy, since we don't do all the asserts and etc. eval-time checks on modules.
+            # May as well make it lazier where possible.
+            verify = isAttrs;
+            # This logic is based on computeOptions', with the unnecessary logic stripped out.
+            # computeOptions' is used under the hood in the apply function below, so this is the usual duplicated verification logic.
+            # NOTE: Assertions are always handled lazily.
+            # They should not be the thing that an either-like type uses to decide between multiple options, so they don't need to be checked here.
+            verifyNested =
+              verifyVariant: params:
+              # Check that values passed are actually options.
+              # FIXME: is this assert necessary? do other things catch this?
+              assert
+                params == { }
+                || removeAttrs params (attrNames self.options) == { }
+                || messages.mkMissingParamsError self errorPrefix self.options params;
+              all (v: v) (
+                attrValues (
+                  # Propagate verify check to each option's type.
+                  mapAttrs (
+                    name: value:
+                    let
+                      maybeType = self.options.${name}.type;
+                    in
+                    (if maybeType.__adiosPromise or false then callPromise maybeType else maybeType).${verifyVariant}
+                      value
+                  ) params
+                )
+              );
+
+            # Call self with the given options.
+            apply =
+              v:
+              if def ? result || def ? impl then
+                self v
+              else if v == { } then
+                computeCachedOptions { inherit self args callPromise; }
+              else
+                recomputeOptions {
+                  inherit self callPromise;
+                  params = v;
+                  args = self.recomputeArgs v;
+                };
+          };
+
         args =
           if !self ? assertions then args else runAssertionsAndDefine (callFunctionWith args) self args;
 
+        # TODO: test an actual usecase for this
         ${if def ? types then "types" else null} = addErrorContext "${errorPrefix}: in attribute 'types'" (
           checkTypedefs def.types
         );
         ${if def ? mutations then "mutations" else null} =
           checkMutations "${errorPrefix}: in attribute 'mutations'" def.mutations;
+        # TODO: test an actual usecase for this
         ${if def ? lib then "lib" else null} = addErrorContext "${errorPrefix}: in attribute 'lib'" (
           checkLib def.lib
         );
@@ -553,6 +617,10 @@ let
                       );
                   }
               ) inputArgs;
+
+              # HACK: temp for testing other stuff, impl typed inputs instead
+              inherit inputModules;
+
               results = mapAttrs (
                 name: args:
                 args.result
